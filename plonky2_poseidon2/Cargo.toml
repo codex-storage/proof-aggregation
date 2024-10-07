@@ -1,0 +1,23 @@
+[package]
+name = "plonky2_poseidon2"
+description = "Plonky2 with Poseidon2 hash"
+authors = ["Mohammed Alghazwi <m.ghazwi@gmail.com>"]
+readme = "README.md"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow     = { version = "1.0.89" }
+unroll = { version = "0.1.5", default-features = false }
+serde      = { version = "1.0.210" , features = ["rc"] }
+serde_json = { version = "1.0" }
+plonky2    = { version = "0.2.2" }
+plonky2_field = { version = "0.2.2", default-features = false }
+
+[dev-dependencies]
+criterion = { version = "0.5.1", default-features = false }
+tynm = { version = "0.1.6", default-features = false }
+
+[[bench]]
+name = "poseidon2_perm"
+harness = false
