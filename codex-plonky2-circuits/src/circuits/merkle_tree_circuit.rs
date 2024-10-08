@@ -11,11 +11,11 @@ use plonky2::plonk::proof::ProofWithPublicInputs;
 use std::marker::PhantomData;
 use itertools::Itertools;
 
-use crate::merkle_tree::MerkleTree;
+use crate::merkle_tree::capped_tree::MerkleTree;
 use plonky2::hash::poseidon::PoseidonHash;
 
 use plonky2::hash::hash_types::{HashOutTarget, MerkleCapTarget, NUM_HASH_OUT_ELTS};
-use crate::merkle_tree::{MerkleProof, MerkleProofTarget};
+use crate::merkle_tree::capped_tree::{MerkleProof, MerkleProofTarget};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
 
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -24,7 +24,7 @@ use plonky2::plonk::proof::Proof;
 
 use plonky2::hash::hashing::PlonkyPermutation;
 use plonky2::plonk::circuit_data::VerifierCircuitTarget;
-use crate::merkle_tree::MerkleCap;
+use crate::merkle_tree::capped_tree::MerkleCap;
 
 // size of leaf data (in number of field elements)
 pub const LEAF_LEN: usize = 4;
@@ -359,7 +359,7 @@ pub mod tests {
 
     use super::*;
     use plonky2::field::types::Field;
-    use crate::merkle_tree::MerkleTree;
+    use crate::merkle_tree::capped_tree::MerkleTree;
     use plonky2::iop::witness::{PartialWitness, WitnessWrite};
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
