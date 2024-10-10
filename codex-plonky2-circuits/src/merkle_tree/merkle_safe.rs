@@ -11,10 +11,10 @@ use std::ops::Shr;
 use plonky2_field::types::Field;
 
 // Constants for the keys used in compression
-const KEY_NONE: u64 = 0x0;
-const KEY_BOTTOM_LAYER: u64 = 0x1;
-const KEY_ODD: u64 = 0x2;
-const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
+pub const KEY_NONE: u64 = 0x0;
+pub const KEY_BOTTOM_LAYER: u64 = 0x1;
+pub const KEY_ODD: u64 = 0x2;
+pub const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
 
 /// Trait for a hash function that supports keyed compression.
 pub trait KeyedHasher<F: RichField>: Hasher<F> {
@@ -35,9 +35,9 @@ impl KeyedHasher<GoldilocksField> for PoseidonHash {
 /// Merkle tree struct, containing the layers, compression function, and zero hash.
 #[derive(Clone)]
 pub struct MerkleTree<F: RichField, H: KeyedHasher<F>> {
-    layers: Vec<Vec<H::Hash>>,
-    compress: fn(H::Hash, H::Hash, u64) -> H::Hash,
-    zero: H::Hash,
+    pub layers: Vec<Vec<H::Hash>>,
+    pub compress: fn(H::Hash, H::Hash, u64) -> H::Hash,
+    pub zero: H::Hash,
 }
 
 impl<F: RichField, H: KeyedHasher<F>> MerkleTree<F, H> {
