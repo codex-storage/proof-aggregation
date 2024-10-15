@@ -31,7 +31,7 @@ To run the benchmarks for proving cells circuit, you can use the following comma
 Note: make sure to asjust the parameters as need in [`prove_single_cell`](./src/circuits/prove_single_cell.rs)
 
 ```bash
-cargo bench --bench safe_circuit
+cargo bench --bench prove_cells
 ```
 
 ### Results
