@@ -1,7 +1,10 @@
+// circuit for regular merkle tree implementation (non-safe version)
+// the circuit uses caps in similar way as in Plonky2 Merkle tree implementation
+// NOTE: this might be deleted at later time, since we don't use it for codex
+
 use anyhow::Result;
 use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
-use plonky2::hash::hashing::hash_n_to_m_no_pad;
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite, Witness};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
@@ -15,16 +18,14 @@ use crate::merkle_tree::capped_tree::MerkleTree;
 use plonky2::hash::poseidon::PoseidonHash;
 
 use plonky2::hash::hash_types::{HashOutTarget, MerkleCapTarget, NUM_HASH_OUT_ELTS};
-use crate::merkle_tree::capped_tree::{MerkleProof, MerkleProofTarget};
-use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+use crate::merkle_tree::capped_tree::MerkleProofTarget;
+use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
-use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::Proof;
 
 use plonky2::hash::hashing::PlonkyPermutation;
 use plonky2::plonk::circuit_data::VerifierCircuitTarget;
-use crate::merkle_tree::capped_tree::MerkleCap;
 
 // size of leaf data (in number of field elements)
 pub const LEAF_LEN: usize = 4;
@@ -66,7 +67,6 @@ impl<
     }
 
     // build the circuit and returns the circuit data
-    // note, this fn generate circuit data with
     pub fn build_circuit(&mut self, builder: &mut CircuitBuilder::<F, D>) -> MerkleTreeTargets<F, C, D, H>{
 
         let proof_t = MerkleProofTarget {
@@ -89,8 +89,6 @@ impl<
         );
 
         MerkleTreeTargets{
-            // depth: 0,
-            // cap_height: 0,
             proof_target: proof_t,
             cap_target: cap_t,
             leaf: leaf_t.to_vec(),
@@ -360,7 +358,7 @@ pub mod tests {
     use super::*;
     use plonky2::field::types::Field;
     use crate::merkle_tree::capped_tree::MerkleTree;
-    use plonky2::iop::witness::{PartialWitness, WitnessWrite};
+    use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
 

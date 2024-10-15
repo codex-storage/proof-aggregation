@@ -6,21 +6,21 @@ use anyhow::Result;
 use plonky2::field::extension::Extendable;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
-use plonky2::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField, NUM_HASH_OUT_ELTS};
-use plonky2::hash::hashing::{hash_n_to_m_no_pad, PlonkyPermutation};
+use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField, NUM_HASH_OUT_ELTS};
+use plonky2::hash::hashing::PlonkyPermutation;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::iop::witness::{PartialWitness, Witness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, VerifierCircuitData, VerifierCircuitTarget};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, VerifierCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher, PoseidonGoldilocksConfig};
 use plonky2::plonk::proof::{Proof, ProofWithPublicInputs};
 use std::marker::PhantomData;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use serde::Serialize;
 
-use crate::merkle_tree::merkle_safe::{MerkleTree, MerkleProof, MerkleProofTarget, KeyedHasher};
-use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER,KEY_ODD,KEY_ODD_AND_BOTTOM_LAYER};
+use crate::merkle_tree::merkle_safe::{MerkleTree, MerkleProofTarget};
+use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
 
 
 /// Merkle tree targets representing the input to the circuit
@@ -32,14 +32,13 @@ pub struct MerkleTreeTargets<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F> + KeyedHasher<F>,
+    H: Hasher<F> + AlgebraicHasher<F>,
 > {
     pub leaf: HashOutTarget,
     pub path_bits: Vec<BoolTarget>,
     pub last_bits: Vec<BoolTarget>,
     pub merkle_path: MerkleProofTarget,
-    pub expected_root: HashOutTarget,
-    _phantom: PhantomData<(C, H)>,
+    pub _phantom: PhantomData<(C, H)>,
 }
 
 /// Merkle tree circuit contains the tree and functions for
@@ -49,7 +48,7 @@ pub struct MerkleTreeCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F> + KeyedHasher<F>,
+    H: Hasher<F> + AlgebraicHasher<F>,
 > {
     pub tree: MerkleTree<F, H>,
     pub _phantom: PhantomData<C>,
@@ -59,9 +58,10 @@ impl<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F=F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F> + KeyedHasher<F>,
+    H: Hasher<F> + AlgebraicHasher<F>,
 > MerkleTreeCircuit<F, C, D, H> {
 
+    /// defines the computations inside the circuit and returns the targets used
     pub fn build_circuit(
         &mut self,
         builder: &mut CircuitBuilder::<F, D>
@@ -83,21 +83,17 @@ impl<
             path: (0..depth).map(|_| builder.add_virtual_hash()).collect(),
         };
 
-        // expected Merkle root
-        let expected_root = builder.add_virtual_hash();
-
         // create MerkleTreeTargets struct
         let mut targets = MerkleTreeTargets {
             leaf,
             path_bits,
             last_bits,
             merkle_path,
-            expected_root,
             _phantom: PhantomData,
         };
 
         // Add Merkle proof verification constraints to the circuit
-        self.verify_merkle_proof_circuit2(builder, &mut targets);
+        self.reconstruct_merkle_root_circuit(builder, &mut targets);
 
         // Return MerkleTreeTargets
         targets
@@ -171,24 +167,16 @@ impl<
             }
         }
 
-        // assign the expected Merkle root to the target
-        let expected_root = self.tree.root()?;
-        // TODO: fix this HashOutTarget later same issue as above
-        let expected_root_hash_out = expected_root.to_vec();
-        for j in 0..expected_root_hash_out.len() {
-            pw.set_target(targets.expected_root.elements[j], expected_root_hash_out[j]);
-        }
-
         Ok(())
     }
 
-    /// Verifies a Merkle proof within the circuit.
     /// takes the params from the targets struct
-    pub fn verify_merkle_proof_circuit2(
+    /// outputs the reconstructed merkle root
+    pub fn reconstruct_merkle_root_circuit(
         &self,
         builder: &mut CircuitBuilder<F, D>,
         targets: &mut MerkleTreeTargets<F, C, D, H>,
-    ) {
+    ) -> HashOutTarget {
         let max_depth = targets.path_bits.len();
         let mut state: HashOutTarget = targets.leaf;
         let zero = builder.zero();
@@ -239,11 +227,7 @@ impl<
             i += 1;
         }
 
-        // check equality with expected root
-        for i in 0..NUM_HASH_OUT_ELTS {
-            builder.connect(targets.expected_root.elements[i], state.elements[i]);
-        }
-
+        return state;
     }
 
 
@@ -254,10 +238,10 @@ impl<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F> + KeyedHasher<F>,
+    H: Hasher<F> + AlgebraicHasher<F>,
 > MerkleTreeCircuit<F, C, D, H> {
     /// Converts an index to a vector of bits (LSB first) with padding.
-    fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
+    pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
         let mut bits = Vec::with_capacity(bit_length);
         for i in 0..bit_length {
             bits.push(((index >> i) & 1) == 1);
@@ -270,6 +254,9 @@ impl<
     }
 }
 
+
+// NOTE: for now these tests don't check the reconstructed root is equal to expected_root
+// will be fixed later, but for that test check the prove_single_cell tests
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,7 +264,6 @@ mod tests {
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
     use plonky2::iop::witness::PartialWitness;
-    use rand::Rng;
 
     #[test]
     fn test_build_circuit() -> Result<()> {
@@ -305,7 +291,7 @@ mod tests {
         let zero_hash = HashOut {
             elements: [GoldilocksField::ZERO; 4],
         };
-        let tree = MerkleTree::<F, H>::new(&leaves, zero_hash, H::compress)?;
+        let tree = MerkleTree::<F, H>::new(&leaves, zero_hash)?;
 
         // select leaf index to prove
         let leaf_index: usize = 8;
@@ -372,7 +358,7 @@ mod tests {
         let zero_hash = HashOut {
             elements: [GoldilocksField::ZERO; 4],
         };
-        let tree = MerkleTree::<F, H>::new(&leaves, zero_hash, H::compress)?;
+        let tree = MerkleTree::<F, H>::new(&leaves, zero_hash)?;
 
         let expected_root = tree.root()?;
 
