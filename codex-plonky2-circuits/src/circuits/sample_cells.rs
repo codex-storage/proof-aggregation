@@ -31,7 +31,7 @@ use crate::circuits::prove_single_cell::{MAX_DEPTH, SlotTree};
 use crate::circuits::safe_tree_circuit::{MerkleTreeCircuit, MerkleTreeTargets};
 
 // constatnts and types
-const DATASET_DEPTH: usize = 8;
+const DATASET_DEPTH: usize = 2;
 const N_SAMPLES: usize = 5;
 
 type HF = PoseidonHash;
@@ -184,4 +184,27 @@ fn bits_le_padded_to_usize(bits: &[bool]) -> usize {
             acc
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+    use super::*;
+    use plonky2::plonk::circuit_data::CircuitConfig;
+    use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+    use plonky2::iop::witness::PartialWitness;
+
+    //types for tests
+    type F = GoldilocksField;
+    type H = PoseidonHash;
+
+    #[test]
+    fn test_sample_cells() {
+        let dataset_t = DatasetTree::<F, H>::default();
+        let slot_index = 2;
+        let entropy = 123;
+        let proof = dataset_t.sample_slot(slot_index,entropy);
+        let res = dataset_t.verify_sampling(proof).unwrap();
+        assert_eq!(res, true);
+    }
 }
