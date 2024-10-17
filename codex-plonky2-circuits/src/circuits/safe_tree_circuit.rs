@@ -18,6 +18,7 @@ use plonky2::plonk::proof::{Proof, ProofWithPublicInputs};
 use std::marker::PhantomData;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use serde::Serialize;
+use crate::circuits::utils::usize_to_bits_le_padded;
 
 use crate::merkle_tree::merkle_safe::{MerkleTree, MerkleProofTarget};
 use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
@@ -144,14 +145,14 @@ impl<
         pw.set_hash_target(targets.leaf, leaf_hash);
 
         // Convert `leaf_index` to binary bits and assign as path_bits
-        let path_bits = self.usize_to_bits_le_padded(leaf_index, depth);
+        let path_bits = usize_to_bits_le_padded(leaf_index, depth);
         for (i, bit) in path_bits.iter().enumerate() {
             pw.set_bool_target(targets.path_bits[i], *bit);
         }
 
         // get `last_index` (nleaves - 1) in binary bits and assign
         let last_index = nleaves - 1;
-        let last_bits = self.usize_to_bits_le_padded(last_index, depth);
+        let last_bits = usize_to_bits_le_padded(last_index, depth);
         for (i, bit) in last_bits.iter().enumerate() {
             pw.set_bool_target(targets.last_bits[i], *bit);
         }
@@ -234,25 +235,25 @@ impl<
 }
 
 // --------- helper functions ---------
-impl<
-    F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
-> MerkleTreeCircuit<F, C, D, H> {
-    /// Converts an index to a vector of bits (LSB first) with padding.
-    pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
-        let mut bits = Vec::with_capacity(bit_length);
-        for i in 0..bit_length {
-            bits.push(((index >> i) & 1) == 1);
-        }
-        // If index requires fewer bits, pad with `false`
-        while bits.len() < bit_length {
-            bits.push(false);
-        }
-        bits
-    }
-}
+// impl<
+//     F: RichField + Extendable<D> + Poseidon2,
+//     C: GenericConfig<D, F = F>,
+//     const D: usize,
+//     H: Hasher<F> + AlgebraicHasher<F>,
+// > MerkleTreeCircuit<F, C, D, H> {
+//     /// Converts an index to a vector of bits (LSB first) with padding.
+//     pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
+//         let mut bits = Vec::with_capacity(bit_length);
+//         for i in 0..bit_length {
+//             bits.push(((index >> i) & 1) == 1);
+//         }
+//         // If index requires fewer bits, pad with `false`
+//         while bits.len() < bit_length {
+//             bits.push(false);
+//         }
+//         bits
+//     }
+// }
 
 
 // NOTE: for now these tests don't check the reconstructed root is equal to expected_root

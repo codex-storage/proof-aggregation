@@ -27,14 +27,10 @@ use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
 use plonky2::hash::hashing::PlonkyPermutation;
-use crate::circuits::prove_single_cell::{MAX_DEPTH, SlotTree};
+use crate::circuits::prove_single_cell::{SingleCellTargets, SlotTree};
+use crate::circuits::params::{MAX_DEPTH, BOT_DEPTH, N_FIELD_ELEMS_PER_CELL, N_CELLS_IN_BLOCKS, N_BLOCKS, N_CELLS, HF, DATASET_DEPTH, N_SAMPLES};
+
 use crate::circuits::safe_tree_circuit::{MerkleTreeCircuit, MerkleTreeTargets};
-
-// constatnts and types
-const DATASET_DEPTH: usize = 2;
-const N_SAMPLES: usize = 5;
-
-type HF = PoseidonHash;
 
 // ------ Dataset Tree --------
 ///dataset tree containing all slot trees
@@ -154,6 +150,78 @@ impl<F: RichField, H: Hasher<F>> DatasetTree<F, H> {
         Ok(true)
     }
 }
+
+//------- single cell struct ------
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DatasetTargets<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F>,
+> {
+    // pub expected_dataset_root_target: HashOutTarget,
+    // pub slot_index: Target,
+    // pub entropy_target: Target,
+    // pub slot_root: HashOutTarget,
+    pub slot_proofs: Vec<SingleCellTargets<F, C, D, H>>,
+
+
+    // pub proof_target: MerkleProofTarget,
+    // pub leaf_target: Vec<Target>,
+    // pub path_bits: Vec<BoolTarget>,
+    // pub last_bits: Vec<BoolTarget>,
+    _phantom: PhantomData<(C,H)>,
+}
+
+//------- circuit impl --------
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F=F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F> + Hasher<F>,
+> MerkleTreeCircuit<F, C, D, H> {
+
+    // the in-circuit sampling of a slot in a dataset
+    pub fn sample_slot_circuit(
+        &mut self,
+        builder: &mut CircuitBuilder::<F, D>,
+    )-> DatasetTargets<F,C,D,H>{
+
+        // Create virtual targets
+        // let slot_root = builder.add_virtual_hash();
+        let mut slot_proofs =vec![];
+        for i in 0..N_SAMPLES{
+            let proof_i = self.prove_single_cell2(builder);
+            slot_proofs.push(proof_i);
+        }
+
+        DatasetTargets::<F,C,D,H>{
+            // expected_dataset_root_target: HashOutTarget {},
+            // slot_index: Default::default(),
+            // entropy_target: Default::default(),
+            // slot_root: HashOutTarget {},
+            slot_proofs,
+            _phantom: Default::default(),
+        }
+    }
+
+    // assign the witnesses to the target
+    // takes the dataset tree, slot index, and entropy
+    pub fn sample_slot_assign_witness(
+        &mut self,
+        pw: &mut PartialWitness<F>,
+        targets: DatasetTargets<F,C,D,H>,
+        dataset_tree: DatasetTree<F,H>,
+        slot_index:usize,
+        entropy:usize,
+    ){
+
+
+    }
+
+}
+
 
 // --------- helper functions --------------
 fn calculate_cell_index_bits<F: RichField>(p0: usize, p1: HashOut<F>, p2: usize) -> Vec<bool> {

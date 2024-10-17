@@ -29,18 +29,8 @@ use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
 use plonky2::hash::hashing::PlonkyPermutation;
 use crate::circuits::safe_tree_circuit::{MerkleTreeCircuit, MerkleTreeTargets};
-
-// constants and types used throughout the circuit
-pub const N_FIELD_ELEMS_PER_CELL: usize = 4;
-pub const BOT_DEPTH: usize = 5; // block depth - depth of the block merkle tree
-pub const MAX_DEPTH: usize = 16; // depth of big tree (slot tree depth + block tree depth)
-const N_CELLS_IN_BLOCKS: usize = 1<<BOT_DEPTH; //2^BOT_DEPTH
-const N_BLOCKS: usize = 1<<(MAX_DEPTH - BOT_DEPTH); // 2^(MAX_DEPTH - BOT_DEPTH)
-const N_CELLS: usize = N_CELLS_IN_BLOCKS * N_BLOCKS;
-// hash function used. this is hackish way of doing it because
-// H::Hash is not consistent with HashOut<F> and causing a lot of headache
-// will look into this later.
-type HF = PoseidonHash;
+use crate::circuits::utils::usize_to_bits_le_padded;
+use crate::circuits::params::{MAX_DEPTH, BOT_DEPTH, N_FIELD_ELEMS_PER_CELL, N_CELLS_IN_BLOCKS, N_BLOCKS, N_CELLS, HF};
 
 // ------ Slot Tree --------
 
@@ -157,9 +147,9 @@ impl<F: RichField, H: Hasher<F>> SlotTree<F, H> {
 
     /// verify the given proof for slot tree, checks equality with given root
     pub fn verify_cell_proof(&self, proof: MerkleProof<F, H>, root: HashOut<F>) -> Result<bool>{
-        let mut block_path_bits = self.usize_to_bits_le_padded(proof.index, MAX_DEPTH);
+        let mut block_path_bits = usize_to_bits_le_padded(proof.index, MAX_DEPTH);
         let last_index = N_CELLS - 1;
-        let mut block_last_bits = self.usize_to_bits_le_padded(last_index, MAX_DEPTH);
+        let mut block_last_bits = usize_to_bits_le_padded(last_index, MAX_DEPTH);
 
         let split_point = BOT_DEPTH;
 
@@ -186,18 +176,18 @@ impl<F: RichField, H: Hasher<F>> SlotTree<F, H> {
         return block_tree;
     }
 
-    /// Converts an index to a vector of bits (LSB first) with padding.
-    pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
-        let mut bits = Vec::with_capacity(bit_length);
-        for i in 0..bit_length {
-            bits.push(((index >> i) & 1) == 1);
-        }
-        // If index requires fewer bits, pad with `false`
-        while bits.len() < bit_length {
-            bits.push(false);
-        }
-        bits
-    }
+    // /// Converts an index to a vector of bits (LSB first) with padding.
+    // pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
+    //     let mut bits = Vec::with_capacity(bit_length);
+    //     for i in 0..bit_length {
+    //         bits.push(((index >> i) & 1) == 1);
+    //     }
+    //     // If index requires fewer bits, pad with `false`
+    //     while bits.len() < bit_length {
+    //         bits.push(false);
+    //     }
+    //     bits
+    // }
 }
 
 //------- single cell struct ------
@@ -329,14 +319,14 @@ impl<
         }
 
         // Convert `leaf_index` to binary bits and assign as path_bits
-        let path_bits = self.usize_to_bits_le_padded(leaf_index, MAX_DEPTH);
+        let path_bits = usize_to_bits_le_padded(leaf_index, MAX_DEPTH);
         for (i, bit) in path_bits.iter().enumerate() {
             pw.set_bool_target(targets.path_bits[i], *bit);
         }
 
         // get `last_index` (nleaves - 1) in binary bits and assign
         let last_index = N_CELLS - 1;
-        let last_bits = self.usize_to_bits_le_padded(last_index, MAX_DEPTH);
+        let last_bits = usize_to_bits_le_padded(last_index, MAX_DEPTH);
         for (i, bit) in last_bits.iter().enumerate() {
             pw.set_bool_target(targets.last_bits[i], *bit);
         }
