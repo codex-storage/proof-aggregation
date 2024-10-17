@@ -35,14 +35,24 @@ use crate::circuits::params::{MAX_DEPTH, BOT_DEPTH, N_FIELD_ELEMS_PER_CELL, N_CE
 // ------ Slot Tree --------
 
 #[derive(Clone)]
-pub struct SlotTree<F: RichField, H: Hasher<F>> {
-    pub tree: MerkleTree<F,H>, // slot tree
-    pub block_trees: Vec<MerkleTree<F,H>>, // vec of block trees
+pub struct SlotTreeCircuit<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F>,
+> {
+    pub tree: MerkleTreeCircuit<F,C,D,H>, // slot tree
+    pub block_trees: Vec<MerkleTreeCircuit<F,C,D,H>>, // vec of block trees
     pub cell_data: Vec<Vec<F>>, // cell data as field elements
     pub cell_hash: Vec<HashOut<F>>, // hash of above
 }
 
-impl<F: RichField, H: Hasher<F>> Default for SlotTree<F,H>{
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F>,
+> Default for SlotTreeCircuit<F,C,D,H>{
     /// slot tree with fake data, for testing only
     fn default() -> Self {
         // generate fake cell data
@@ -69,19 +79,38 @@ impl<F: RichField, H: Hasher<F>> Default for SlotTree<F,H>{
             .map(|i| {
                 let start = i * N_CELLS_IN_BLOCKS;
                 let end = (i + 1) * N_CELLS_IN_BLOCKS;
-                Self::get_block_tree(&leaves[start..end].to_vec()) // use helper function
+                let b_tree = Self::get_block_tree(&leaves[start..end].to_vec()); // use helper function
+                MerkleTreeCircuit::<F,C,D,H>{ tree:b_tree, _phantom:Default::default()}
             })
             .collect::<Vec<_>>();
         // get the roots or block trees
         let block_roots = block_trees.iter()
             .map(|t| {
-                t.root().unwrap()
+                t.tree.root().unwrap()
             })
             .collect::<Vec<_>>();
         // create slot tree
         let slot_tree = MerkleTree::<F, H>::new(&block_roots, zero).unwrap();
+        // let mt =
+        // MerkleTree::<F,H>{
+        //     tree: slot_tree,
+        //     block_trees,
+        //     cell_data,
+        //     cell_hash: leaves,
+        // }
+
+        // create block circuits
+        // let block_circuits = block_trees.iter()
+        //     .map(|b_tree| {
+        //         // let start = i * N_CELLS_IN_BLOCKS;
+        //         // let end = (i + 1) * N_CELLS_IN_BLOCKS;
+        //         // Self::get_block_tree(&leaves[start..end].to_vec()) // use helper function
+        //         MerkleTreeCircuit::<F,C,D,H>{ tree:b_tree.clone(), _phantom:Default::default()},
+        //     })
+        //     .collect::<Vec<_>>();
+
         Self{
-            tree: slot_tree,
+            tree: MerkleTreeCircuit::<F,C,D,H>{ tree:slot_tree, _phantom:Default::default()},
             block_trees,
             cell_data,
             cell_hash: leaves,
@@ -89,7 +118,12 @@ impl<F: RichField, H: Hasher<F>> Default for SlotTree<F,H>{
     }
 }
 
-impl<F: RichField, H: Hasher<F>> SlotTree<F, H> {
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F>,
+> SlotTreeCircuit<F,C,D, H> {
 
     /// same as default but with supplied cell data
     pub fn new(cell_data: Vec<Vec<F>>) -> Self{
@@ -106,17 +140,18 @@ impl<F: RichField, H: Hasher<F>> SlotTree<F, H> {
             .map(|i| {
                 let start = i * N_CELLS_IN_BLOCKS;
                 let end = (i + 1) * N_CELLS_IN_BLOCKS;
-                Self::get_block_tree(&leaves[start..end].to_vec())
+                let b_tree = Self::get_block_tree(&leaves[start..end].to_vec());
+                MerkleTreeCircuit::<F,C,D,H>{ tree:b_tree, _phantom:Default::default()}
             })
             .collect::<Vec<_>>();
         let block_roots = block_trees.iter()
             .map(|t| {
-                t.root().unwrap()
+                t.tree.root().unwrap()
             })
             .collect::<Vec<_>>();
         let slot_tree = MerkleTree::<F, H>::new(&block_roots, zero).unwrap();
         Self{
-            tree: slot_tree,
+            tree: MerkleTreeCircuit::<F,C,D,H>{ tree:slot_tree, _phantom:Default::default()},
             block_trees,
             cell_data,
             cell_hash: leaves,
@@ -128,8 +163,8 @@ impl<F: RichField, H: Hasher<F>> SlotTree<F, H> {
     pub fn get_proof(&self, index: usize) -> MerkleProof<F, H> {
         let block_index = index/ N_CELLS_IN_BLOCKS;
         let leaf_index = index % N_CELLS_IN_BLOCKS;
-        let block_proof = self.block_trees[block_index].get_proof(leaf_index).unwrap();
-        let slot_proof = self.tree.get_proof(block_index).unwrap();
+        let block_proof = self.block_trees[block_index].tree.get_proof(leaf_index).unwrap();
+        let slot_proof = self.tree.tree.get_proof(block_index).unwrap();
 
         // Combine the paths from the block and slot proofs
         let mut combined_path = block_proof.path.clone();
@@ -213,10 +248,10 @@ impl<
     C: GenericConfig<D, F=F>,
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F> + Hasher<F>,
-> MerkleTreeCircuit<F, C, D, H> {
+> SlotTreeCircuit<F, C, D, H> {
 
-    pub fn prove_single_cell2(
-        &mut self,
+    pub fn prove_single_cell(
+        // &mut self,
         builder: &mut CircuitBuilder::<F, D>
     ) -> SingleCellTargets<F, C, D, H> {
 
@@ -258,7 +293,7 @@ impl<
         };
 
         // reconstruct block root
-        let block_root = self.reconstruct_merkle_root_circuit(builder, &mut block_targets);
+        let block_root = MerkleTreeCircuit::<F,C,D,H>::reconstruct_merkle_root_circuit(builder, &mut block_targets);
 
         // create MerkleTreeTargets struct
         let mut slot_targets = MerkleTreeTargets {
@@ -270,7 +305,7 @@ impl<
         };
 
         // reconstruct slot root with block root as leaf
-        let slot_root = self.reconstruct_merkle_root_circuit(builder, &mut slot_targets);
+        let slot_root = MerkleTreeCircuit::<F,C,D,H>::reconstruct_merkle_root_circuit(builder, &mut slot_targets);
 
         // check equality with expected root
         for i in 0..NUM_HASH_OUT_ELTS {
@@ -305,7 +340,7 @@ impl<
     /// this takes leaf_index, leaf, and proof (generated from slot_tree)
     /// and fills all required circuit targets(circuit inputs)
     pub fn single_cell_assign_witness(
-        &mut self,
+        &self,
         pw: &mut PartialWitness<F>,
         targets: &mut SingleCellTargets<F, C, D, H>,
         leaf_index: usize,
@@ -343,7 +378,7 @@ impl<
         }
 
         // assign the expected Merkle root to the target
-        let expected_root = self.tree.root()?;
+        let expected_root = self.tree.tree.root()?;
         // TODO: fix this HashOutTarget later same issue as above
         let expected_root_hash_out = expected_root.to_vec();
         for j in 0..expected_root_hash_out.len() {
@@ -367,49 +402,46 @@ mod tests {
     use plonky2::iop::witness::PartialWitness;
 
     //types for tests
-    type F = GoldilocksField;
+    const D: usize = 2;
+    type C = PoseidonGoldilocksConfig;
+    type F = <C as GenericConfig<D>>::F;
     type H = PoseidonHash;
 
     #[test]
     fn test_prove_single_cell(){
-        let slot_t = SlotTree::<F,H>::default();
+        let slot_t = SlotTreeCircuit::<F,C,D,H>::default();
         let index = 8;
         let proof = slot_t.get_proof(index);
-        let res = slot_t.verify_cell_proof(proof,slot_t.tree.root().unwrap()).unwrap();
+        let res = slot_t.verify_cell_proof(proof,slot_t.tree.tree.root().unwrap()).unwrap();
         assert_eq!(res, true);
     }
 
     #[test]
     fn test_cell_build_circuit() -> Result<()> {
-        // circuit params
-        const D: usize = 2;
-        type C = PoseidonGoldilocksConfig;
-        type F = <C as GenericConfig<D>>::F;
-        type H = PoseidonHash;
 
-        let slot_t = SlotTree::<F,H>::default();
+        let slot_t = SlotTreeCircuit::<F,C,D,H>::default();
 
         // select leaf index to prove
         let leaf_index: usize = 8;
 
         let proof = slot_t.get_proof(leaf_index);
         // get the expected Merkle root
-        let expected_root = slot_t.tree.root().unwrap();
+        let expected_root = slot_t.tree.tree.root().unwrap();
         let res = slot_t.verify_cell_proof(proof.clone(),expected_root).unwrap();
         assert_eq!(res, true);
 
         // create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let mut circuit_instance = MerkleTreeCircuit::<F, C, D, H> {
-            tree: slot_t.tree.clone(),
-            _phantom: PhantomData,
-        };
-        let mut targets = circuit_instance.prove_single_cell2(&mut builder);
+        // let mut circuit_instance = MerkleTreeCircuit::<F, C, D, H> {
+        //     tree: slot_t.tree.clone(),
+        //     _phantom: PhantomData,
+        // };
+        let mut targets = SlotTreeCircuit::<F,C,D,H>::prove_single_cell(&mut builder);
 
         // create a PartialWitness and assign
         let mut pw = PartialWitness::new();
-        circuit_instance.single_cell_assign_witness(&mut pw, &mut targets, leaf_index, &slot_t.cell_data[leaf_index], proof)?;
+        slot_t.single_cell_assign_witness(&mut pw, &mut targets, leaf_index, &slot_t.cell_data[leaf_index], proof)?;
 
         // build the circuit
         let data = builder.build::<C>();

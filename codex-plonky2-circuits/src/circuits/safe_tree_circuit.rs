@@ -28,7 +28,7 @@ use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
 // note: this omits the mask bits since in plonky2 we can
 // uses the Plonk's permutation argument to check that two elements are equal.
 // TODO: double check the need for mask
-// #[derive(Clone)]
+#[derive(Clone)]
 pub struct MerkleTreeTargets<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F = F>,
@@ -44,7 +44,7 @@ pub struct MerkleTreeTargets<
 
 /// Merkle tree circuit contains the tree and functions for
 /// building, proving and verifying the circuit.
-// #[derive(Clone)]
+#[derive(Clone)]
 pub struct MerkleTreeCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F = F>,
@@ -94,7 +94,7 @@ impl<
         };
 
         // Add Merkle proof verification constraints to the circuit
-        self.reconstruct_merkle_root_circuit(builder, &mut targets);
+        Self::reconstruct_merkle_root_circuit(builder, &mut targets);
 
         // Return MerkleTreeTargets
         targets
@@ -174,7 +174,7 @@ impl<
     /// takes the params from the targets struct
     /// outputs the reconstructed merkle root
     pub fn reconstruct_merkle_root_circuit(
-        &self,
+        // &self,
         builder: &mut CircuitBuilder<F, D>,
         targets: &mut MerkleTreeTargets<F, C, D, H>,
     ) -> HashOutTarget {

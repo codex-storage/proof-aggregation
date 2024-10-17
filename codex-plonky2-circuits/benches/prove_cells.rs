@@ -15,7 +15,7 @@ use plonky2::hash::hash_types::RichField;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use std::marker::PhantomData;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use codex_plonky2_circuits::circuits::prove_single_cell::SlotTree;
+use codex_plonky2_circuits::circuits::prove_single_cell::SlotTreeCircuit;
 
 macro_rules! pretty_print {
     ($($arg:tt)*) => {
@@ -28,7 +28,7 @@ macro_rules! pretty_print {
 type HF = PoseidonHash;
 
 fn prepare_data<F, H>(N: usize) -> Result<(
-    SlotTree<F, H>,
+    SlotTreeCircuit<F, H>,
     Vec<usize>,
     Vec<MerkleProof<F, H>>,
 )>
@@ -37,7 +37,7 @@ where
     H: Hasher<F> + AlgebraicHasher<F> + Hasher<F>,
 {
     // Initialize the slot tree with default data
-    let slot_tree = SlotTree::<F, H>::default();
+    let slot_tree = SlotTreeCircuit::<F, H>::default();
 
     // Select N leaf indices to prove
     let leaf_indices: Vec<usize> = (0..N).collect();
@@ -52,7 +52,7 @@ where
 }
 
 fn build_circuit<F, C, const D: usize, H>(
-    slot_tree: &SlotTree<F, H>,
+    slot_tree: &SlotTreeCircuit<F, H>,
     leaf_indices: &[usize],
     proofs: &[MerkleProof<F, H>],
 ) -> Result<(CircuitData<F, C, D>, PartialWitness<F>)>
