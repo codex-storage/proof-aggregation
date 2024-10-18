@@ -27,17 +27,18 @@ macro_rules! pretty_print {
 // Hash function used
 type HF = PoseidonHash;
 
-fn prepare_data<F, H>(N: usize) -> Result<(
-    SlotTreeCircuit<F, H>,
+fn prepare_data<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F>,
+>(N: usize) -> Result<(
+    SlotTreeCircuit<F, C, D, H>,
     Vec<usize>,
     Vec<MerkleProof<F, H>>,
-)>
-where
-    F: RichField + Extendable<2> + Poseidon2,
-    H: Hasher<F> + AlgebraicHasher<F> + Hasher<F>,
-{
+)> {
     // Initialize the slot tree with default data
-    let slot_tree = SlotTreeCircuit::<F, H>::default();
+    let slot_tree = SlotTreeCircuit::<F, C,D, H>::default();
 
     // Select N leaf indices to prove
     let leaf_indices: Vec<usize> = (0..N).collect();
@@ -51,15 +52,16 @@ where
     Ok((slot_tree, leaf_indices, proofs))
 }
 
-fn build_circuit<F, C, const D: usize, H>(
-    slot_tree: &SlotTreeCircuit<F, H>,
+fn build_circuit<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: Hasher<F> + AlgebraicHasher<F>,
+>(
+    slot_tree: &SlotTreeCircuit<F, C, D, H>,
     leaf_indices: &[usize],
     proofs: &[MerkleProof<F, H>],
 ) -> Result<(CircuitData<F, C, D>, PartialWitness<F>)>
-where
-    F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
-    H: Hasher<F> + AlgebraicHasher<F> + Hasher<F>,
 {
     // Create the circuit
     let config = CircuitConfig::standard_recursion_config();
@@ -68,19 +70,13 @@ where
     // Create a PartialWitness
     let mut pw = PartialWitness::new();
 
-    // Initialize the circuit instance
-    let mut circuit_instance = MerkleTreeCircuit::<F, C, D, H> {
-        tree: slot_tree.tree.clone(),
-        _phantom: PhantomData,
-    };
-
     // For each proof, create targets, add constraints, and assign witnesses
     for (i, &leaf_index) in leaf_indices.iter().enumerate() {
         // Build the circuit for each proof
-        let mut targets = circuit_instance.prove_single_cell2(&mut builder);
+        let mut targets = SlotTreeCircuit::<F,C,D,H>::prove_single_cell(&mut builder);
 
         // Assign witnesses for each proof
-        circuit_instance.single_cell_assign_witness(
+        slot_tree.single_cell_assign_witness(
             &mut pw,
             &mut targets,
             leaf_index,
@@ -106,7 +102,7 @@ fn single_cell_proof_benchmark(c: &mut Criterion) {
 
     // Prepare the data that will be used in all steps
     let N = 5; // Number of leaves to prove
-    let (slot_tree, leaf_indices, proofs) = prepare_data::<F, H>(N).unwrap();
+    let (slot_tree, leaf_indices, proofs) = prepare_data::<F, C, D, H>(N).unwrap();
 
     // Benchmark the circuit building
     group.bench_function("Single Cell Proof Build", |b| {
