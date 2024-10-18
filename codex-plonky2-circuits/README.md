@@ -15,6 +15,12 @@ This crate is an implementation of the [codex storage proofs circuits](https://g
 
 - [`prove_single_cell`](./src/circuits/prove_single_cell.rs) is the Plonky2 Circuit implementation for proving a single cell in slot merkle tree. 
 
+- [`sample_cells`](./src/circuits/sample_cells.rs) is the Plonky2 Circuit implementation for sampling cells in dataset merkle tree.
+
+- [`params`](./src/circuits/params.rs) is the parameters used in the circuits.
+
+- [`utils`](./src/circuits/utils.rs) contains helper functions.
+
 ## Usage
 TODO!
 
@@ -28,32 +34,29 @@ To run the benchmarks for safe merkle tree circuit, you can use the following co
 cargo bench --bench safe_circuit
 ```
 To run the benchmarks for proving cells circuit, you can use the following command:
-Note: make sure to asjust the parameters as need in [`prove_single_cell`](./src/circuits/prove_single_cell.rs)
+Note: make sure to adjust the parameters as need in [`params`](./src/circuits/params.rs)
 
 ```bash
 cargo bench --bench prove_cells
 ```
 
+To run the benchmarks for sampling circuit, you can use the following command:
+Note: make sure to adjust the parameters as need in [`params`](./src/circuits/params.rs)
+
+```bash
+cargo bench --bench sample_cells
+```
+
 ### Results
-Benchmark results for safe Merkle Tree depth 16 with and 5 samples
+Benchmark results for proving 10 cells (10 samples) in a Slot Merkle tree with max depth 16 with 
+the small tree (block tree) is of depth 5 so 32 cells in each block. Cell data size is 2048 bytes (256 field elements)
 
-| Operation | Time (ms)        |
-|-----------|------------------|
-| **Build** | 19.353 ms        |
-| **Prove** | 29.699 ms        |
-| **Verify**| 2.0137 ms        |
+| Operation | Time (ms) |
+|-----------|-----------|
+| **Build** | 34.4 ms   |
+| **Prove** | 50.3 ms   |
+| **Verify**| 2.4 ms    |
 
-Circuit size: 2<sup>9</sup> gates
-Proof size: 103,372 bytes
+Circuit size: 2<sup>10</sup> gates
 
-Benchmark results for proving 5 cells in a Merkle tree with max depth 16 with and 5 samples
-Note: the small tree (block tree) is of depth 5 so 32 cells in each block
-
-| Operation | Time (ms)        |
-|-----------|------------------|
-| **Build** | 17.835 ms        |
-| **Prove** | 28.743 ms        |
-| **Verify**| 1.9792 ms        |
-
-Circuit size: 2<sup>9</sup> gates
-Proof size: 103,372 bytes
+Proof size: 116,008 bytes
