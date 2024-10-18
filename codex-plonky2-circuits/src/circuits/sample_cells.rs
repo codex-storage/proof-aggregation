@@ -176,17 +176,8 @@ pub struct DatasetTargets<
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 > {
-    // pub expected_dataset_root_target: HashOutTarget,
-    // pub slot_index: Target,
-    // pub entropy_target: Target,
-    // pub slot_root: HashOutTarget,
     pub slot_proofs: Vec<SingleCellTargets<F, C, D, H>>,
 
-
-    // pub proof_target: MerkleProofTarget,
-    // pub leaf_target: Vec<Target>,
-    // pub path_bits: Vec<BoolTarget>,
-    // pub last_bits: Vec<BoolTarget>,
     _phantom: PhantomData<(C,H)>,
 }
 
@@ -204,8 +195,6 @@ impl<
         builder: &mut CircuitBuilder::<F, D>,
     )-> DatasetTargets<F,C,D,H>{
 
-        // Create virtual targets
-        // let slot_root = builder.add_virtual_hash();
         let mut slot_proofs =vec![];
         for i in 0..N_SAMPLES{
             let proof_i = SlotTreeCircuit::<F,C,D,H>::prove_single_cell(builder);
@@ -213,26 +202,30 @@ impl<
         }
 
         DatasetTargets::<F,C,D,H>{
-            // expected_dataset_root_target: HashOutTarget {},
-            // slot_index: Default::default(),
-            // entropy_target: Default::default(),
-            // slot_root: HashOutTarget {},
             slot_proofs,
             _phantom: Default::default(),
         }
     }
 
-    // assign the witnesses to the target
-    // takes the dataset tree, slot index, and entropy
+    // assign the witnesses to the targets
+    // takes pw, the dataset targets, slot index, and entropy
     pub fn sample_slot_assign_witness(
         &mut self,
         pw: &mut PartialWitness<F>,
-        targets: DatasetTargets<F,C,D,H>,
-        dataset_tree: DatasetTreeCircuit<F,C,D,H>,
+        targets: &mut DatasetTargets<F,C,D,H>,
         slot_index:usize,
         entropy:usize,
     ){
+        let slot = &self.slot_trees[slot_index];
+        let slot_root = slot.tree.tree.root().unwrap();
 
+        for i in 0..N_SAMPLES {
+            let cell_index_bits = calculate_cell_index_bits(entropy, slot_root, i);
+            let cell_index = bits_le_padded_to_usize(&cell_index_bits);
+            let leaf = &slot.cell_data[cell_index];
+            let proof = slot.get_proof(cell_index);
+            slot.single_cell_assign_witness(pw, &mut targets.slot_proofs[i],cell_index,leaf, proof.clone());
+        }
 
     }
 
@@ -260,5 +253,48 @@ mod tests {
         let proof = dataset_t.sample_slot(slot_index,entropy);
         let res = dataset_t.verify_sampling(proof).unwrap();
         assert_eq!(res, true);
+    }
+
+    #[test]
+    fn test_sample_cells_circuit() -> Result<()> {
+
+        let mut dataset_t = DatasetTreeCircuit::<F,C,D,H>::default();
+
+        let slot_index = 2;
+        let entropy = 123;
+
+        // sanity check
+        let proof = dataset_t.sample_slot(slot_index,entropy);
+        let slot_root = dataset_t.slot_trees[slot_index].tree.tree.root().unwrap();
+        let res = dataset_t.verify_sampling(proof).unwrap();
+        assert_eq!(res, true);
+
+        // create the circuit
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let mut targets = dataset_t.sample_slot_circuit(&mut builder);
+
+        // create a PartialWitness and assign
+        let mut pw = PartialWitness::new();
+        dataset_t.sample_slot_assign_witness(&mut pw, &mut targets,slot_index,entropy);
+
+        // build the circuit
+        let data = builder.build::<C>();
+        println!("circuit size = {:?}", data.common.degree_bits());
+
+        // Prove the circuit with the assigned witness
+        let start_time = Instant::now();
+        let proof_with_pis = data.prove(pw)?;
+        println!("prove_time = {:?}", start_time.elapsed());
+
+        // verify the proof
+        let verifier_data = data.verifier_data();
+        assert!(
+            verifier_data.verify(proof_with_pis).is_ok(),
+            "Merkle proof verification failed"
+        );
+
+        Ok(())
     }
 }

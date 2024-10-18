@@ -6,7 +6,7 @@ use plonky2::hash::poseidon::PoseidonHash;
 // constants and types used throughout the circuit
 pub const N_FIELD_ELEMS_PER_CELL: usize = 4;
 pub const BOT_DEPTH: usize = 5; // block depth - depth of the block merkle tree
-pub const MAX_DEPTH: usize = 16; // depth of big tree (slot tree depth + block tree depth)
+pub const MAX_DEPTH: usize = 8; // depth of big tree (slot tree depth + block tree depth)
 pub const N_CELLS_IN_BLOCKS: usize = 1<<BOT_DEPTH; //2^BOT_DEPTH
 pub const N_BLOCKS: usize = 1<<(MAX_DEPTH - BOT_DEPTH); // 2^(MAX_DEPTH - BOT_DEPTH)
 pub const N_CELLS: usize = N_CELLS_IN_BLOCKS * N_BLOCKS;

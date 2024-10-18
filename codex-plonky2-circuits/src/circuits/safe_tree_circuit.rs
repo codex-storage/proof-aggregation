@@ -100,29 +100,6 @@ impl<
         targets
     }
 
-    /// prove given the circuit data and partial witness
-    pub fn prove(
-        &mut self,
-        data: CircuitData<F, C, D>,
-        pw: PartialWitness<F>
-    ) -> Result<ProofWithPublicInputs<F, C, D>>{
-        let proof = data.prove(pw);
-        return proof
-    }
-
-    /// verify given verifier data, public input, and proof
-    pub fn verify(
-        &mut self,
-        verifier_data: &VerifierCircuitData<F, C, D>,
-        public_inputs: Vec<F>,
-        proof: Proof<F, C, D>
-    )-> Result<()> {
-        verifier_data.verify(ProofWithPublicInputs {
-            proof,
-            public_inputs,
-        })
-    }
-
     /// assign the witness values in the circuit targets
     /// this takes leaf_index and fills all required circuit targets(inputs)
     pub fn assign_witness(
@@ -233,28 +210,6 @@ impl<
 
 
 }
-
-// --------- helper functions ---------
-// impl<
-//     F: RichField + Extendable<D> + Poseidon2,
-//     C: GenericConfig<D, F = F>,
-//     const D: usize,
-//     H: Hasher<F> + AlgebraicHasher<F>,
-// > MerkleTreeCircuit<F, C, D, H> {
-//     /// Converts an index to a vector of bits (LSB first) with padding.
-//     pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
-//         let mut bits = Vec::with_capacity(bit_length);
-//         for i in 0..bit_length {
-//             bits.push(((index >> i) & 1) == 1);
-//         }
-//         // If index requires fewer bits, pad with `false`
-//         while bits.len() < bit_length {
-//             bits.push(false);
-//         }
-//         bits
-//     }
-// }
-
 
 // NOTE: for now these tests don't check the reconstructed root is equal to expected_root
 // will be fixed later, but for that test check the prove_single_cell tests
