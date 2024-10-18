@@ -91,23 +91,6 @@ impl<
             .collect::<Vec<_>>();
         // create slot tree
         let slot_tree = MerkleTree::<F, H>::new(&block_roots, zero).unwrap();
-        // let mt =
-        // MerkleTree::<F,H>{
-        //     tree: slot_tree,
-        //     block_trees,
-        //     cell_data,
-        //     cell_hash: leaves,
-        // }
-
-        // create block circuits
-        // let block_circuits = block_trees.iter()
-        //     .map(|b_tree| {
-        //         // let start = i * N_CELLS_IN_BLOCKS;
-        //         // let end = (i + 1) * N_CELLS_IN_BLOCKS;
-        //         // Self::get_block_tree(&leaves[start..end].to_vec()) // use helper function
-        //         MerkleTreeCircuit::<F,C,D,H>{ tree:b_tree.clone(), _phantom:Default::default()},
-        //     })
-        //     .collect::<Vec<_>>();
 
         Self{
             tree: MerkleTreeCircuit::<F,C,D,H>{ tree:slot_tree, _phantom:Default::default()},
@@ -124,7 +107,6 @@ impl<
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 > SlotTreeCircuit<F,C,D, H> {
-
     /// same as default but with supplied cell data
     pub fn new(cell_data: Vec<Vec<F>>) -> Self{
         let leaves: Vec<HashOut<F>> = cell_data

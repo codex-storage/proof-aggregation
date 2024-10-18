@@ -28,7 +28,7 @@ use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
 use plonky2::hash::hashing::PlonkyPermutation;
 use crate::circuits::prove_single_cell::{SingleCellTargets, SlotTreeCircuit};
-use crate::circuits::params::{MAX_DEPTH, BOT_DEPTH, N_FIELD_ELEMS_PER_CELL, N_CELLS_IN_BLOCKS, N_BLOCKS, N_CELLS, HF, DATASET_DEPTH, N_SAMPLES};
+use crate::circuits::params::{MAX_DEPTH, BOT_DEPTH, N_FIELD_ELEMS_PER_CELL, N_CELLS_IN_BLOCKS, N_BLOCKS, N_CELLS, HF, DATASET_DEPTH, N_SAMPLES, TESTING_SLOT_INDEX};
 
 use crate::circuits::safe_tree_circuit::{MerkleTreeCircuit, MerkleTreeTargets};
 use crate::circuits::utils::{bits_le_padded_to_usize, calculate_cell_index_bits};
@@ -93,6 +93,45 @@ impl<
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 > DatasetTreeCircuit<F,C,D,H> {
+    /// dataset tree with fake data, for testing only
+    /// create data for only the TESTING_SLOT_INDEX in params file
+    pub fn new_for_testing() -> Self {
+        let mut slot_trees = vec![];
+        let n_slots = 1<<DATASET_DEPTH;
+        // zero hash
+        let zero = HashOut {
+            elements: [F::ZERO; 4],
+        };
+        let zero_slot = SlotTreeCircuit::<F,C,D,H>{
+            tree: MerkleTreeCircuit {
+                tree: MerkleTree::<F,H>::new(&[zero.clone()], zero.clone()).unwrap(),
+                _phantom: Default::default(),
+            },
+            block_trees: vec![],
+            cell_data: vec![],
+            cell_hash: vec![],
+        };
+        for i in 0..n_slots {
+            if(i == TESTING_SLOT_INDEX) {
+                slot_trees.push(SlotTreeCircuit::<F, C, D, H>::default());
+            }else{
+                slot_trees.push(zero_slot.clone());
+            }
+
+        }
+        // get the roots or slot trees
+        let slot_roots = slot_trees.iter()
+            .map(|t| {
+                t.tree.tree.root().unwrap()
+            })
+            .collect::<Vec<_>>();
+        let dataset_tree = MerkleTree::<F, H>::new(&slot_roots, zero).unwrap();
+        Self{
+            tree: MerkleTreeCircuit::<F,C,D,H>{ tree:dataset_tree, _phantom:Default::default()},
+            slot_trees,
+        }
+    }
+
     /// same as default but with supplied slot trees
     pub fn new(slot_trees: Vec<SlotTreeCircuit<F,C,D,H>>) -> Self{
         // get the roots or slot trees
@@ -261,6 +300,49 @@ mod tests {
         let mut dataset_t = DatasetTreeCircuit::<F,C,D,H>::default();
 
         let slot_index = 2;
+        let entropy = 123;
+
+        // sanity check
+        let proof = dataset_t.sample_slot(slot_index,entropy);
+        let slot_root = dataset_t.slot_trees[slot_index].tree.tree.root().unwrap();
+        let res = dataset_t.verify_sampling(proof).unwrap();
+        assert_eq!(res, true);
+
+        // create the circuit
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let mut targets = dataset_t.sample_slot_circuit(&mut builder);
+
+        // create a PartialWitness and assign
+        let mut pw = PartialWitness::new();
+        dataset_t.sample_slot_assign_witness(&mut pw, &mut targets,slot_index,entropy);
+
+        // build the circuit
+        let data = builder.build::<C>();
+        println!("circuit size = {:?}", data.common.degree_bits());
+
+        // Prove the circuit with the assigned witness
+        let start_time = Instant::now();
+        let proof_with_pis = data.prove(pw)?;
+        println!("prove_time = {:?}", start_time.elapsed());
+
+        // verify the proof
+        let verifier_data = data.verifier_data();
+        assert!(
+            verifier_data.verify(proof_with_pis).is_ok(),
+            "Merkle proof verification failed"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sample_cells_circuit_from_selected_slot() -> Result<()> {
+
+        let mut dataset_t = DatasetTreeCircuit::<F,C,D,H>::new_for_testing();
+
+        let slot_index = TESTING_SLOT_INDEX;
         let entropy = 123;
 
         // sanity check
