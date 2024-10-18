@@ -24,7 +24,6 @@ use plonky2::hash::hash_types::{HashOutTarget, NUM_HASH_OUT_ELTS};
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleProofTarget};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
-use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
 use plonky2::hash::hashing::PlonkyPermutation;
@@ -44,7 +43,6 @@ pub struct SlotTreeCircuit<
     pub tree: MerkleTreeCircuit<F,C,D,H>, // slot tree
     pub block_trees: Vec<MerkleTreeCircuit<F,C,D,H>>, // vec of block trees
     pub cell_data: Vec<Vec<F>>, // cell data as field elements
-    pub cell_hash: Vec<HashOut<F>>, // hash of above
 }
 
 impl<
@@ -96,7 +94,6 @@ impl<
             tree: MerkleTreeCircuit::<F,C,D,H>{ tree:slot_tree, _phantom:Default::default()},
             block_trees,
             cell_data,
-            cell_hash: leaves,
         }
     }
 }
@@ -107,6 +104,67 @@ impl<
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 > SlotTreeCircuit<F,C,D, H> {
+
+    /// Slot tree with fake data, for testing only
+    pub fn new_for_testing() -> Self {
+        // Generate fake cell data for one block
+        let cell_data_block = (0..N_CELLS_IN_BLOCKS)
+            .map(|i| {
+                (0..N_FIELD_ELEMS_PER_CELL)
+                    .map(|j| F::from_canonical_u64((j + i) as u64))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // Hash the cell data block to create leaves for one block
+        let leaves_block: Vec<HashOut<F>> = cell_data_block
+            .iter()
+            .map(|element| {
+                HF::hash_no_pad(&element)
+            })
+            .collect();
+
+        // Zero hash
+        let zero = HashOut {
+            elements: [F::ZERO; 4],
+        };
+
+        // Create a block tree from the leaves of one block
+        let b_tree = Self::get_block_tree(&leaves_block);
+
+        // Create a block tree circuit
+        let block_tree_circuit = MerkleTreeCircuit::<F, C, D, H> {
+            tree: b_tree,
+            _phantom: Default::default(),
+        };
+
+        // Now replicate this block tree for all N_BLOCKS blocks
+        let block_trees = vec![block_tree_circuit.clone(); N_BLOCKS];
+
+        // Get the roots of block trees
+        let block_roots = block_trees
+            .iter()
+            .map(|t| t.tree.root().unwrap())
+            .collect::<Vec<_>>();
+
+        // Create the slot tree from block roots
+        let slot_tree = MerkleTree::<F, H>::new(&block_roots, zero).unwrap();
+
+        // Create the full cell data and cell hash by repeating the block data
+        let cell_data = vec![cell_data_block.clone(); N_BLOCKS].concat();
+
+        // Return the constructed Self
+        Self {
+            tree: MerkleTreeCircuit::<F, C, D, H> {
+                tree: slot_tree,
+                _phantom: Default::default(),
+            },
+            block_trees,
+            cell_data,
+        }
+    }
+
+
     /// same as default but with supplied cell data
     pub fn new(cell_data: Vec<Vec<F>>) -> Self{
         let leaves: Vec<HashOut<F>> = cell_data
@@ -136,7 +194,6 @@ impl<
             tree: MerkleTreeCircuit::<F,C,D,H>{ tree:slot_tree, _phantom:Default::default()},
             block_trees,
             cell_data,
-            cell_hash: leaves,
         }
     }
 
@@ -155,7 +212,7 @@ impl<
         MerkleProof::<F, H> {
             index: index,
             path: combined_path,
-            nleaves: self.cell_hash.len(),
+            nleaves: self.cell_data.len(),
             zero: block_proof.zero.clone(),
             phantom_data: Default::default(),
         }
@@ -173,7 +230,7 @@ impl<
         let slot_last_bits = block_last_bits.split_off(split_point);
         let slot_path_bits = block_path_bits.split_off(split_point);
 
-        let leaf_hash = self.cell_hash[proof.index];
+        let leaf_hash = HF::hash_no_pad(&self.cell_data[proof.index]);
 
         let mut block_path = proof.path;
         let slot_path = block_path.split_off(split_point);
@@ -192,19 +249,6 @@ impl<
         let block_tree = MerkleTree::<F, H>::new(leaves, zero).unwrap();
         return block_tree;
     }
-
-    // /// Converts an index to a vector of bits (LSB first) with padding.
-    // pub(crate) fn usize_to_bits_le_padded(&self, index: usize, bit_length: usize) -> Vec<bool> {
-    //     let mut bits = Vec::with_capacity(bit_length);
-    //     for i in 0..bit_length {
-    //         bits.push(((index >> i) & 1) == 1);
-    //     }
-    //     // If index requires fewer bits, pad with `false`
-    //     while bits.len() < bit_length {
-    //         bits.push(false);
-    //     }
-    //     bits
-    // }
 }
 
 //------- single cell struct ------
@@ -415,10 +459,7 @@ mod tests {
         // create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        // let mut circuit_instance = MerkleTreeCircuit::<F, C, D, H> {
-        //     tree: slot_t.tree.clone(),
-        //     _phantom: PhantomData,
-        // };
+
         let mut targets = SlotTreeCircuit::<F,C,D,H>::prove_single_cell(&mut builder);
 
         // create a PartialWitness and assign

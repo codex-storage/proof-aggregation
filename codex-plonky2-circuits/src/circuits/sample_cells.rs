@@ -19,16 +19,14 @@ use itertools::Itertools;
 use crate::merkle_tree::merkle_safe::MerkleTree;
 use plonky2::hash::poseidon::PoseidonHash;
 
-use plonky2::hash::hash_types::{HashOutTarget, NUM_HASH_OUT_ELTS};
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleProofTarget};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
-use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
 use plonky2::hash::hashing::PlonkyPermutation;
 use crate::circuits::prove_single_cell::{SingleCellTargets, SlotTreeCircuit};
-use crate::circuits::params::{MAX_DEPTH, BOT_DEPTH, N_FIELD_ELEMS_PER_CELL, N_CELLS_IN_BLOCKS, N_BLOCKS, N_CELLS, HF, DATASET_DEPTH, N_SAMPLES, TESTING_SLOT_INDEX};
+use crate::circuits::params::{ DATASET_DEPTH, N_SAMPLES, TESTING_SLOT_INDEX};
 
 use crate::circuits::safe_tree_circuit::{MerkleTreeCircuit, MerkleTreeTargets};
 use crate::circuits::utils::{bits_le_padded_to_usize, calculate_cell_index_bits};
@@ -109,11 +107,10 @@ impl<
             },
             block_trees: vec![],
             cell_data: vec![],
-            cell_hash: vec![],
         };
         for i in 0..n_slots {
             if(i == TESTING_SLOT_INDEX) {
-                slot_trees.push(SlotTreeCircuit::<F, C, D, H>::default());
+                slot_trees.push(SlotTreeCircuit::<F, C, D, H>::new_for_testing());
             }else{
                 slot_trees.push(zero_slot.clone());
             }
@@ -294,6 +291,8 @@ mod tests {
         assert_eq!(res, true);
     }
 
+    // sample cells with full set of fake data
+    // this test takes too long, see next test
     #[test]
     fn test_sample_cells_circuit() -> Result<()> {
 
@@ -337,6 +336,7 @@ mod tests {
         Ok(())
     }
 
+    // same as above but with fake data for the specific slot to be sampled
     #[test]
     fn test_sample_cells_circuit_from_selected_slot() -> Result<()> {
 
