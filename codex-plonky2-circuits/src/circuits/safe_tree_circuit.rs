@@ -66,7 +66,7 @@ impl<
     pub fn build_circuit(
         &mut self,
         builder: &mut CircuitBuilder::<F, D>
-    ) -> MerkleTreeTargets<F, C, D, H>{
+    ) -> (MerkleTreeTargets<F, C, { D }, H>, HashOutTarget) {
         // Retrieve tree depth
         let depth = self.tree.depth();
 
@@ -94,10 +94,10 @@ impl<
         };
 
         // Add Merkle proof verification constraints to the circuit
-        Self::reconstruct_merkle_root_circuit(builder, &mut targets);
+        let expected_root_target = Self::reconstruct_merkle_root_circuit(builder, &mut targets);
 
         // Return MerkleTreeTargets
-        targets
+        (targets, expected_root_target)
     }
 
     /// assign the witness values in the circuit targets
@@ -268,7 +268,7 @@ mod tests {
             tree: tree.clone(),
             _phantom: PhantomData,
         };
-        let mut targets = circuit_instance.build_circuit(&mut builder);
+        let (mut targets, expected_root_target) = circuit_instance.build_circuit(&mut builder);
 
         // create a PartialWitness and assign
         let mut pw = PartialWitness::new();
@@ -324,7 +324,7 @@ mod tests {
             tree: tree.clone(),
             _phantom: PhantomData,
         };
-        let mut targets = circuit_instance.build_circuit(&mut builder);
+        let (mut targets, expected_root_target) = circuit_instance.build_circuit(&mut builder);
 
         let data = builder.build::<C>();
 

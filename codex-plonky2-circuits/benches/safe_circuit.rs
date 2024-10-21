@@ -94,7 +94,7 @@ fn build_circuit<F, C, const D: usize, H>(
     // For each proof, create targets, add constraints, and assign witnesses
     for &leaf_index in leaf_indices.iter() {
         // Build the circuit for each proof
-        let mut targets = circuit_instance.build_circuit(&mut builder);
+        let (mut targets, _root) = circuit_instance.build_circuit(&mut builder);
 
         // Assign witnesses for each proof
         circuit_instance.assign_witness(&mut pw, &mut targets, leaf_index)?;

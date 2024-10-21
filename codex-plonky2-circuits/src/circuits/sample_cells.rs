@@ -7,7 +7,7 @@
 
 use anyhow::Result;
 use plonky2::field::extension::Extendable;
-use plonky2::hash::hash_types::{HashOut, RichField};
+use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite, Witness};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
@@ -205,13 +205,15 @@ impl<
 
 //------- single cell struct ------
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct DatasetTargets<
     F: RichField + Extendable<D> + Poseidon2,
     C: GenericConfig<D, F = F>,
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 > {
+    pub dataset_proof: MerkleTreeTargets<F, C, D, H>,
+    pub dataset_root: HashOutTarget,
     pub slot_proofs: Vec<SingleCellTargets<F, C, D, H>>,
 
     _phantom: PhantomData<(C,H)>,
@@ -231,6 +233,16 @@ impl<
         builder: &mut CircuitBuilder::<F, D>,
     )-> DatasetTargets<F,C,D,H>{
 
+        let (dataset_proof, dataset_root_target) = self.tree.build_circuit(builder);
+
+        // expected Merkle root
+        let dataset_expected_root = builder.add_virtual_hash();
+
+        // check equality with expected root
+        for i in 0..NUM_HASH_OUT_ELTS {
+            builder.connect(dataset_expected_root.elements[i], dataset_root_target.elements[i]);
+        }
+
         let mut slot_proofs =vec![];
         for i in 0..N_SAMPLES{
             let proof_i = SlotTreeCircuit::<F,C,D,H>::prove_single_cell(builder);
@@ -238,6 +250,8 @@ impl<
         }
 
         DatasetTargets::<F,C,D,H>{
+            dataset_proof,
+            dataset_root: dataset_expected_root,
             slot_proofs,
             _phantom: Default::default(),
         }
@@ -252,9 +266,21 @@ impl<
         slot_index:usize,
         entropy:usize,
     ){
+        // assign witness for dataset level target (proving slot root is in dataset tree)
+        self.tree.assign_witness(pw,&mut targets.dataset_proof,slot_index);
+
+        // assign the expected Merkle root of dataset to the target
+        let expected_root = self.tree.tree.root().unwrap();
+        let expected_root_hash_out = expected_root.to_vec();
+        for j in 0..expected_root_hash_out.len() {
+            pw.set_target(targets.dataset_root.elements[j], expected_root_hash_out[j]);
+        }
+
+        // the sampled slot
         let slot = &self.slot_trees[slot_index];
         let slot_root = slot.tree.tree.root().unwrap();
 
+        // do the sample N times
         for i in 0..N_SAMPLES {
             let cell_index_bits = calculate_cell_index_bits(entropy, slot_root, i);
             let cell_index = bits_le_padded_to_usize(&cell_index_bits);
