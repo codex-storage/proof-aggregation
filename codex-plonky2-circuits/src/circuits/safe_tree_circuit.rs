@@ -207,8 +207,6 @@ impl<
 
         return state;
     }
-
-
 }
 
 // NOTE: for now these tests don't check the reconstructed root is equal to expected_root

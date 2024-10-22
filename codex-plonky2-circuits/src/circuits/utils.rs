@@ -1,4 +1,4 @@
-use plonky2::hash::hash_types::{HashOut, RichField};
+use plonky2::hash::hash_types::{HashOut, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_data::{CircuitData, VerifierCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher};
@@ -22,18 +22,19 @@ pub(crate) fn usize_to_bits_le_padded(index: usize, bit_length: usize) -> Vec<bo
     }
     bits
 }
-
-pub(crate) fn calculate_cell_index_bits<F: RichField>(p0: usize, p1: HashOut<F>, p2: usize) -> Vec<bool> {
-    let p0_field = F::from_canonical_u64(p0 as u64);
-    let p2_field = F::from_canonical_u64(p2 as u64);
+/// calculate the sampled cell index from entropy, slot root, and counter
+pub(crate) fn calculate_cell_index_bits<F: RichField>(entropy: usize, slot_root: HashOut<F>, ctr: usize) -> Vec<bool> {
+    let p0_field = F::from_canonical_u64(entropy as u64);
+    let p2_field = F::from_canonical_u64(ctr as u64);
     let mut inputs = Vec::new();
-    inputs.extend_from_slice(&p1.elements);
+    inputs.extend_from_slice(&slot_root.elements);
     inputs.push(p0_field);
     inputs.push(p2_field);
     let p_hash = HF::hash_no_pad(&inputs);
-    let p_bytes = p_hash.to_bytes();
+    let p_bytes = p_hash.elements[NUM_HASH_OUT_ELTS - 1].to_canonical_u64();
 
-    let p_bits = take_n_bits_from_bytes(&p_bytes, MAX_DEPTH);
+    // let p_bits = take_n_bits_from_bytes(&p_bytes, MAX_DEPTH);
+    let p_bits = usize_to_bits_le_padded(p_bytes as usize, MAX_DEPTH);
     p_bits
 }
 pub(crate) fn take_n_bits_from_bytes(bytes: &[u8], n: usize) -> Vec<bool> {
