@@ -291,9 +291,9 @@ impl<
             // cell data targets
             let mut data_i = (0..N_FIELD_ELEMS_PER_CELL).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
 
-            let mut perm_inputs:Vec<Target>= Vec::new();
-            perm_inputs.extend_from_slice(&data_i);
-            let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(perm_inputs);
+            let mut hash_inputs:Vec<Target>= Vec::new();
+            hash_inputs.extend_from_slice(&data_i);
+            let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
             // counter constant
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();

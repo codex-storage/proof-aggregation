@@ -270,9 +270,9 @@ impl<
         // Create virtual targets
         let mut leaf = (0..N_FIELD_ELEMS_PER_CELL).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
 
-        let mut perm_inputs:Vec<Target>= Vec::new();
-        perm_inputs.extend_from_slice(&leaf);
-        let leaf_hash = builder.hash_n_to_hash_no_pad::<HF>(perm_inputs);
+        let mut hash_inputs:Vec<Target>= Vec::new();
+        hash_inputs.extend_from_slice(&leaf);
+        let leaf_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
 
         // path bits (binary decomposition of leaf_index)
         let mut block_path_bits = (0..BOT_DEPTH).map(|_| builder.add_virtual_bool_target_safe()).collect::<Vec<_>>();

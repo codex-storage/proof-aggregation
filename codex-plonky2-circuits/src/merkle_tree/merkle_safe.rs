@@ -10,18 +10,14 @@ use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 use std::ops::Shr;
 use plonky2_field::types::Field;
-
+use crate::circuits::keyed_compress::key_compress;
+use crate::circuits::params::HF;
 
 // Constants for the keys used in compression
 pub const KEY_NONE: u64 = 0x0;
 pub const KEY_BOTTOM_LAYER: u64 = 0x1;
 pub const KEY_ODD: u64 = 0x2;
 pub const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
-
-// hash function used. this is hackish way of doing it because
-// H::Hash is not consistent with HashOut<F> and causing a lot of headache
-// will look into this later.
-type HF = PoseidonHash;
 
 /// Merkle tree struct, containing the layers, compression function, and zero hash.
 #[derive(Clone)]
@@ -92,16 +88,6 @@ impl<F: RichField> MerkleTree<F> {
     }
 }
 
-/// compress input (x and y) with key using the define HF hash function
-fn key_compress<F: RichField>(x: HashOut<F>, y: HashOut<F>, key: u64) -> HashOut<F> {
-    let key_field = F::from_canonical_u64(key);
-    let mut inputs = Vec::new();
-    inputs.extend_from_slice(&x.elements);
-    inputs.extend_from_slice(&y.elements);
-    inputs.push(key_field);
-    HF::hash_no_pad(&inputs) // TODO: double-check this function
-}
-
 /// Build the Merkle tree layers.
 fn merkle_tree_worker<F: RichField>(
     xs: &[HashOut<F>],
@@ -121,7 +107,7 @@ fn merkle_tree_worker<F: RichField>(
 
     for i in 0..halfn {
         let key = if is_bottom_layer { KEY_BOTTOM_LAYER } else { KEY_NONE };
-        let h = key_compress::<F>(xs[2 * i], xs[2 * i + 1], key);
+        let h = key_compress::<F, HF>(xs[2 * i], xs[2 * i + 1], key);
         ys.push(h);
     }
 
@@ -131,7 +117,7 @@ fn merkle_tree_worker<F: RichField>(
         } else {
             KEY_ODD
         };
-        let h = key_compress::<F>(xs[n], zero, key);
+        let h = key_compress::<F, HF>(xs[n], zero, key);
         ys.push(h);
     }
 
@@ -169,14 +155,14 @@ impl<F: RichField> MerkleProof<F> {
             let odd_index = (j & 1) != 0;
             if odd_index {
                 // The index of the child is odd
-                h = key_compress::<F>(*p, h, bottom_flag);
+                h = key_compress::<F,HF>(*p, h, bottom_flag);
             } else {
                 if j == m - 1 {
                     // Single child -> so odd node
-                    h = key_compress::<F>(h, *p, bottom_flag + 2);
+                    h = key_compress::<F,HF>(h, *p, bottom_flag + 2);
                 } else {
                     // Even node
-                    h = key_compress::<F>(h, *p, bottom_flag);
+                    h = key_compress::<F,HF>(h, *p, bottom_flag);
                 }
             }
             bottom_flag = KEY_NONE;
@@ -207,9 +193,9 @@ impl<F: RichField> MerkleProof<F> {
             let key = bottom + (2 * (odd as u64));
             let odd_index = path_bits[i];
             if odd_index {
-                h = key_compress::<F>(*p, h, key);
+                h = key_compress::<F,HF>(*p, h, key);
             } else {
-                h = key_compress::<F>(h, *p, key);
+                h = key_compress::<F,HF>(h, *p, key);
             }
             i += 1;
         }
@@ -245,6 +231,7 @@ fn compute_is_last(path_bits: Vec<bool>, last_bits: Vec<bool>) -> Vec<bool> {
 mod tests {
     use super::*;
     use plonky2::field::types::Field;
+    use crate::circuits::keyed_compress::key_compress;
 
     // types used in all tests
     type F = GoldilocksField;
@@ -255,12 +242,7 @@ mod tests {
         y: HashOut<F>,
         key: u64,
     ) -> HashOut<F> {
-        let key_field = F::from_canonical_u64(key);
-        let mut inputs = Vec::new();
-        inputs.extend_from_slice(&x.elements);
-        inputs.extend_from_slice(&y.elements);
-        inputs.push(key_field);
-        PoseidonHash::hash_no_pad(&inputs)
+        key_compress::<F,HF>(x,y,key)
     }
 
     fn make_tree(

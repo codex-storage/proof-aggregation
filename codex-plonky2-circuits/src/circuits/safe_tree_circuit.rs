@@ -18,6 +18,7 @@ use plonky2::plonk::proof::{Proof, ProofWithPublicInputs};
 use std::marker::PhantomData;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use serde::Serialize;
+use crate::circuits::keyed_compress::key_compress_circuit;
 use crate::circuits::params::HF;
 use crate::circuits::utils::usize_to_bits_le_padded;
 
@@ -183,12 +184,7 @@ impl<
                 right.push( builder.select(bit, state.elements[i], sibling.elements[i]));
             }
 
-            // hash left, right, and key
-            let mut perm_inputs:Vec<Target>= Vec::new();
-            perm_inputs.extend_from_slice(&left);
-            perm_inputs.extend_from_slice(&right);
-            perm_inputs.push(key);
-            state = builder.hash_n_to_hash_no_pad::<HF>(perm_inputs);
+            state = key_compress_circuit::<F,D,HF>(builder,left,right,key);
 
             i += 1;
         }
