@@ -24,18 +24,22 @@ pub(crate) fn usize_to_bits_le_padded(index: usize, bit_length: usize) -> Vec<bo
 }
 /// calculate the sampled cell index from entropy, slot root, and counter
 pub(crate) fn calculate_cell_index_bits<F: RichField>(entropy: usize, slot_root: HashOut<F>, ctr: usize) -> Vec<bool> {
-    let p0_field = F::from_canonical_u64(entropy as u64);
-    let p2_field = F::from_canonical_u64(ctr as u64);
-    let mut inputs = Vec::new();
-    inputs.extend_from_slice(&slot_root.elements);
-    inputs.push(p0_field);
-    inputs.push(p2_field);
-    let p_hash = HF::hash_no_pad(&inputs);
-    let p_bytes = p_hash.elements[NUM_HASH_OUT_ELTS - 1].to_canonical_u64();
+    let entropy_field = F::from_canonical_u64(entropy as u64);
+    let mut entropy_as_digest = HashOut::<F>::ZERO;
+    entropy_as_digest.elements[0] = entropy_field;
+    let ctr_field = F::from_canonical_u64(ctr as u64);
+    let mut ctr_as_digest = HashOut::<F>::ZERO;
+    ctr_as_digest.elements[0] = ctr_field;
+    let mut hash_inputs = Vec::new();
+    hash_inputs.extend_from_slice(&entropy_as_digest.elements);
+    hash_inputs.extend_from_slice(&slot_root.elements);
+    hash_inputs.extend_from_slice(&ctr_as_digest.elements);
+    let hash_output = HF::hash_no_pad(&hash_inputs);
+    let cell_index_bytes = hash_output.elements[0].to_canonical_u64();
 
     // let p_bits = take_n_bits_from_bytes(&p_bytes, MAX_DEPTH);
-    let p_bits = usize_to_bits_le_padded(p_bytes as usize, MAX_DEPTH);
-    p_bits
+    let cell_index_bits = usize_to_bits_le_padded(cell_index_bytes as usize, MAX_DEPTH);
+    cell_index_bits
 }
 pub(crate) fn take_n_bits_from_bytes(bytes: &[u8], n: usize) -> Vec<bool> {
     bytes.iter()

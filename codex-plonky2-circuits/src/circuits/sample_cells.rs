@@ -214,7 +214,7 @@ pub struct DatasetTargets<
     pub dataset_root: HashOutTarget,
 
     pub cell_data: Vec<Vec<Target>>,
-    pub entropy:Target,
+    pub entropy: HashOutTarget,
     pub slot_index: Target,
     pub slot_root: HashOutTarget,
     pub slot_proofs: Vec<MerkleProofTarget>,
@@ -238,6 +238,7 @@ impl<
     )-> DatasetTargets<F,C,D,H>{
 
         // constants
+        let zero = builder.zero();
         let one = builder.one();
         let two = builder.two();
 
@@ -289,7 +290,7 @@ impl<
 
         let mut data_targets =vec![];
         let mut slot_sample_proofs = vec![];
-        let entropy_target = builder.add_virtual_target();
+        let entropy_target = builder.add_virtual_hash();
         for i in 0..N_SAMPLES{
             // cell data targets
             let mut data_i = (0..N_FIELD_ELEMS_PER_CELL).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
@@ -298,7 +299,15 @@ impl<
             perm_inputs.extend_from_slice(&data_i);
             let data_i_hash = builder.hash_n_to_hash_no_pad::<H>(perm_inputs);
             // counter constant
-            let ctr = builder.constant(F::from_canonical_u64(i as u64));
+            let ctr_target = builder.constant(F::from_canonical_u64(i as u64));
+            let mut ctr = builder.add_virtual_hash();
+            for i in 0..ctr.elements.len() {
+                if(i==0){
+                    ctr.elements[i] = ctr_target;
+                }else{
+                    ctr.elements[i] = zero.clone();
+                }
+            }
             // paths
             let mut b_path_bits = Self::calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr);
             let mut s_path_bits = b_path_bits.split_off(BOT_DEPTH);
@@ -372,15 +381,15 @@ impl<
         }
     }
 
-    pub fn calculate_cell_index_bits(builder: &mut CircuitBuilder::<F, D>, p0: &Target, p1: &HashOutTarget, p2: &Target) -> Vec<BoolTarget> {
-        let mut perm_inputs:Vec<Target>= Vec::new();
-        perm_inputs.extend_from_slice(&p1.elements);
-        perm_inputs.push(*p0);
-        perm_inputs.push(*p2);
-        let data_i_hash = builder.hash_n_to_hash_no_pad::<H>(perm_inputs);
-        let p_bits =  builder.low_bits(data_i_hash.elements[NUM_HASH_OUT_ELTS-1], MAX_DEPTH, 64);
+    pub fn calculate_cell_index_bits(builder: &mut CircuitBuilder::<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget) -> Vec<BoolTarget> {
+        let mut hash_inputs:Vec<Target>= Vec::new();
+        hash_inputs.extend_from_slice(&entropy.elements);
+        hash_inputs.extend_from_slice(&slot_root.elements);
+        hash_inputs.extend_from_slice(&ctr.elements);
+        let hash_out = builder.hash_n_to_hash_no_pad::<H>(hash_inputs);
+        let cell_index_bits =  builder.low_bits(hash_out.elements[0], MAX_DEPTH, 64);
 
-        p_bits
+        cell_index_bits
     }
 
     pub fn sample_slot_assign_witness(
@@ -417,7 +426,14 @@ impl<
         pw.set_hash_target(targets.slot_root, slot_root);
 
         // assign entropy
-        pw.set_target(targets.entropy, F::from_canonical_u64(entropy as u64));
+        for (i, element) in targets.entropy.elements.iter().enumerate() {
+            if(i==0) {
+                pw.set_target(*element, F::from_canonical_u64(entropy as u64));
+            }else {
+                pw.set_target(*element, F::from_canonical_u64(0));
+            }
+        }
+        // pw.set_target(targets.entropy, F::from_canonical_u64(entropy as u64));
 
         // do the sample N times
         for i in 0..N_SAMPLES {
