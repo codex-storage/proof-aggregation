@@ -25,24 +25,21 @@ type HF = PoseidonHash;
 
 /// Merkle tree struct, containing the layers, compression function, and zero hash.
 #[derive(Clone)]
-pub struct MerkleTree<F: RichField, H: Hasher<F>> {
+pub struct MerkleTree<F: RichField> {
     pub layers: Vec<Vec<HashOut<F>>>,
     pub zero: HashOut<F>,
-    phantom_data: PhantomData<H>
 }
 
-impl<F: RichField, H: Hasher<F>> MerkleTree<F, H> {
+impl<F: RichField> MerkleTree<F> {
     /// Constructs a new Merkle tree from the given leaves.
     pub fn new(
         leaves: &[HashOut<F>],
         zero: HashOut<F>,
     ) -> Result<Self> {
-        let layers = merkle_tree_worker::<F,H>(leaves, zero, true)?;
+        let layers = merkle_tree_worker::<F>(leaves, zero, true)?;
         Ok(Self {
             layers,
-            // compress,
             zero,
-            phantom_data: Default::default(),
         })
     }
 
@@ -64,7 +61,7 @@ impl<F: RichField, H: Hasher<F>> MerkleTree<F, H> {
     }
 
     /// Generates a Merkle proof for a given leaf index.
-    pub fn get_proof(&self, index: usize) -> Result<MerkleProof<F, H>> {
+    pub fn get_proof(&self, index: usize) -> Result<MerkleProof<F>> {
         let depth = self.depth();
         let nleaves = self.leaves_count();
 
@@ -91,7 +88,6 @@ impl<F: RichField, H: Hasher<F>> MerkleTree<F, H> {
             path,
             nleaves,
             zero: self.zero,
-            phantom_data: Default::default(),
         })
     }
 }
@@ -107,7 +103,7 @@ fn key_compress<F: RichField>(x: HashOut<F>, y: HashOut<F>, key: u64) -> HashOut
 }
 
 /// Build the Merkle tree layers.
-fn merkle_tree_worker<F: RichField, H: Hasher<F>>(
+fn merkle_tree_worker<F: RichField>(
     xs: &[HashOut<F>],
     zero: HashOut<F>,
     is_bottom_layer: bool,
@@ -140,7 +136,7 @@ fn merkle_tree_worker<F: RichField, H: Hasher<F>>(
     }
 
     let mut layers = vec![xs.to_vec()];
-    let mut upper_layers = merkle_tree_worker::<F,H>(&ys, zero, false)?;
+    let mut upper_layers = merkle_tree_worker::<F>(&ys, zero, false)?;
     layers.append(&mut upper_layers);
 
     Ok(layers)
@@ -148,12 +144,11 @@ fn merkle_tree_worker<F: RichField, H: Hasher<F>>(
 
 /// Merkle proof struct, containing the index, path, and other necessary data.
 #[derive(Clone)]
-pub struct MerkleProof<F: RichField, H: Hasher<F>> {
+pub struct MerkleProof<F: RichField> {
     pub index: usize,       // Index of the leaf
     pub path: Vec<HashOut<F>>, // Sibling hashes from the leaf to the root
     pub nleaves: usize,     // Total number of leaves
     pub zero: HashOut<F>,
-    pub(crate) phantom_data: PhantomData<H>
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -162,7 +157,7 @@ pub struct MerkleProofTarget {
     pub path: Vec<HashOutTarget>,
 }
 
-impl<F: RichField, H: Hasher<F>> MerkleProof<F, H> {
+impl<F: RichField> MerkleProof<F> {
     /// Reconstructs the root hash from the proof and the given leaf.
     pub fn reconstruct_root(&self, leaf: HashOut<F>) -> Result<HashOut<F>> {
         let mut m = self.nleaves;
@@ -271,7 +266,7 @@ mod tests {
     fn make_tree(
         data: &[F],
         zero: HashOut<F>,
-    ) -> Result<MerkleTree<F, H>> {
+    ) -> Result<MerkleTree<F>> {
         // Hash the data to obtain leaf hashes
         let leaves: Vec<HashOut<GoldilocksField>> = data
             .iter()
@@ -281,7 +276,7 @@ mod tests {
             })
             .collect();
 
-        MerkleTree::<F, H>::new(&leaves, zero)
+        MerkleTree::<F>::new(&leaves, zero)
     }
 
     #[test]
@@ -304,7 +299,7 @@ mod tests {
         };
 
         // Build the Merkle tree
-        let tree = MerkleTree::<F, H>::new(&leaves, zero)?;
+        let tree = MerkleTree::<F>::new(&leaves, zero)?;
 
         // Get the root
         let root = tree.root()?;
@@ -366,7 +361,7 @@ mod tests {
                     KEY_NONE,
                 ),
                 KEY_NONE,
-        );
+            );
 
         // Build the tree
         let tree = make_tree(&data, zero)?;
@@ -427,7 +422,7 @@ mod tests {
                     KEY_NONE,
                 ),
                 KEY_NONE,
-        );
+            );
 
         // Build the tree
         let tree = make_tree(&data, zero)?;
@@ -536,7 +531,7 @@ mod tests {
         };
 
         // Build the tree
-        let tree = MerkleTree::<F, H>::new(&leaf_hashes, zero)?;
+        let tree = MerkleTree::<F>::new(&leaf_hashes, zero)?;
 
         // Get the root
         let expected_root = tree.root()?;

@@ -26,7 +26,7 @@ use plonky2::plonk::config::PoseidonGoldilocksConfig;
 
 use plonky2::hash::hashing::PlonkyPermutation;
 use crate::circuits::prove_single_cell::{SingleCellTargets, SlotTreeCircuit};
-use crate::circuits::params::{BOT_DEPTH, DATASET_DEPTH, MAX_DEPTH, N_FIELD_ELEMS_PER_CELL, N_SAMPLES, TESTING_SLOT_INDEX};
+use crate::circuits::params::{BOT_DEPTH, DATASET_DEPTH, HF, MAX_DEPTH, N_FIELD_ELEMS_PER_CELL, N_SAMPLES, TESTING_SLOT_INDEX};
 
 use crate::circuits::safe_tree_circuit::{MerkleTreeCircuit, MerkleTreeTargets};
 use crate::circuits::utils::{bits_le_padded_to_usize, calculate_cell_index_bits};
@@ -36,35 +36,31 @@ use crate::circuits::utils::{bits_le_padded_to_usize, calculate_cell_index_bits}
 #[derive(Clone)]
 pub struct DatasetTreeCircuit<
     F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
 > {
-    pub tree: MerkleTreeCircuit<F, C, D, H>, // dataset tree
-    pub slot_trees: Vec<SlotTreeCircuit<F,C,D,H>>, // vec of slot trees
+    pub tree: MerkleTreeCircuit<F, D>, // dataset tree
+    pub slot_trees: Vec<SlotTreeCircuit<F,D>>, // vec of slot trees
 }
 
 /// Dataset Merkle proof struct, containing the dataset proof and N_SAMPLES proofs.
 #[derive(Clone)]
-pub struct DatasetMerkleProof<F: RichField, H: Hasher<F>> {
+pub struct DatasetMerkleProof<F: RichField> {
     pub slot_index: usize,
     pub entropy: usize,
-    pub dataset_proof: MerkleProof<F,H>,       // proof for dataset level tree
-    pub slot_proofs: Vec<MerkleProof<F,H>>, // proofs for sampled slot, contains N_SAMPLES proofs
+    pub dataset_proof: MerkleProof<F>,       // proof for dataset level tree
+    pub slot_proofs: Vec<MerkleProof<F>>, // proofs for sampled slot, contains N_SAMPLES proofs
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
-> Default for DatasetTreeCircuit<F,C,D,H> {
+> Default for DatasetTreeCircuit<F,D> {
     /// dataset tree with fake data, for testing only
     fn default() -> Self {
         let mut slot_trees = vec![];
         let n_slots = 1<<DATASET_DEPTH;
         for i in 0..n_slots {
-            slot_trees.push(SlotTreeCircuit::<F,C,D,H>::default());
+            slot_trees.push(SlotTreeCircuit::<F,D>::default());
         }
         // get the roots or slot trees
         let slot_roots = slot_trees.iter()
@@ -76,9 +72,9 @@ impl<
         let zero = HashOut {
             elements: [F::ZERO; 4],
         };
-        let dataset_tree = MerkleTree::<F, H>::new(&slot_roots, zero).unwrap();
+        let dataset_tree = MerkleTree::<F>::new(&slot_roots, zero).unwrap();
         Self{
-            tree: MerkleTreeCircuit::<F,C,D,H>{ tree:dataset_tree, _phantom:Default::default()},
+            tree: MerkleTreeCircuit::<F,D>{ tree:dataset_tree},
             slot_trees,
         }
     }
@@ -87,10 +83,8 @@ impl<
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
-> DatasetTreeCircuit<F,C,D,H> {
+> DatasetTreeCircuit<F,D> {
     /// dataset tree with fake data, for testing only
     /// create data for only the TESTING_SLOT_INDEX in params file
     pub fn new_for_testing() -> Self {
@@ -100,17 +94,16 @@ impl<
         let zero = HashOut {
             elements: [F::ZERO; 4],
         };
-        let zero_slot = SlotTreeCircuit::<F,C,D,H>{
+        let zero_slot = SlotTreeCircuit::<F,D>{
             tree: MerkleTreeCircuit {
-                tree: MerkleTree::<F,H>::new(&[zero.clone()], zero.clone()).unwrap(),
-                _phantom: Default::default(),
+                tree: MerkleTree::<F>::new(&[zero.clone()], zero.clone()).unwrap(),
             },
             block_trees: vec![],
             cell_data: vec![],
         };
         for i in 0..n_slots {
             if(i == TESTING_SLOT_INDEX) {
-                slot_trees.push(SlotTreeCircuit::<F, C, D, H>::new_for_testing());
+                slot_trees.push(SlotTreeCircuit::<F, D>::new_for_testing());
             }else{
                 slot_trees.push(zero_slot.clone());
             }
@@ -122,15 +115,15 @@ impl<
                 t.tree.tree.root().unwrap()
             })
             .collect::<Vec<_>>();
-        let dataset_tree = MerkleTree::<F, H>::new(&slot_roots, zero).unwrap();
+        let dataset_tree = MerkleTree::<F>::new(&slot_roots, zero).unwrap();
         Self{
-            tree: MerkleTreeCircuit::<F,C,D,H>{ tree:dataset_tree, _phantom:Default::default()},
+            tree: MerkleTreeCircuit::<F,D>{ tree:dataset_tree},
             slot_trees,
         }
     }
 
     /// same as default but with supplied slot trees
-    pub fn new(slot_trees: Vec<SlotTreeCircuit<F,C,D,H>>) -> Self{
+    pub fn new(slot_trees: Vec<SlotTreeCircuit<F,D>>) -> Self{
         // get the roots or slot trees
         let slot_roots = slot_trees.iter()
             .map(|t| {
@@ -141,23 +134,23 @@ impl<
         let zero = HashOut {
             elements: [F::ZERO; 4],
         };
-        let dataset_tree = MerkleTree::<F, H>::new(&slot_roots, zero).unwrap();
+        let dataset_tree = MerkleTree::<F>::new(&slot_roots, zero).unwrap();
         Self{
-            tree: MerkleTreeCircuit::<F,C,D,H>{ tree:dataset_tree, _phantom:Default::default()},
+            tree: MerkleTreeCircuit::<F,D>{ tree:dataset_tree},
             slot_trees,
         }
     }
 
     /// generates a dataset level proof for given slot index
     /// just a regular merkle tree proof
-    pub fn get_proof(&self, index: usize) -> MerkleProof<F, H> {
+    pub fn get_proof(&self, index: usize) -> MerkleProof<F> {
         let dataset_proof = self.tree.tree.get_proof(index).unwrap();
         dataset_proof
     }
 
     /// generates a proof for given slot index
     /// also takes entropy so it can use it sample the slot
-    pub fn sample_slot(&self, index: usize, entropy: usize) -> DatasetMerkleProof<F, H> {
+    pub fn sample_slot(&self, index: usize, entropy: usize) -> DatasetMerkleProof<F> {
         let dataset_proof = self.tree.tree.get_proof(index).unwrap();
         let slot = &self.slot_trees[index];
         let slot_root = slot.tree.tree.root().unwrap();
@@ -178,7 +171,7 @@ impl<
     }
 
     // verify the sampling - non-circuit version
-    pub fn verify_sampling(&self, proof: DatasetMerkleProof<F,H>) -> Result<bool>{
+    pub fn verify_sampling(&self, proof: DatasetMerkleProof<F>) -> Result<bool>{
         let slot = &self.slot_trees[proof.slot_index];
         let slot_root = slot.tree.tree.root().unwrap();
         // check dataset level proof
@@ -204,12 +197,7 @@ impl<
 }
 
 #[derive(Clone)]
-pub struct DatasetTargets<
-    F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
-> {
+pub struct DatasetTargets{
     pub dataset_proof: MerkleProofTarget, // proof that slot_root in dataset tree
     pub dataset_root: HashOutTarget,
 
@@ -219,23 +207,20 @@ pub struct DatasetTargets<
     pub slot_root: HashOutTarget,
     pub slot_proofs: Vec<MerkleProofTarget>,
 
-    _phantom: PhantomData<(C,H)>,
 }
 
 //------- circuit impl --------
 impl<
     F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F=F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F> + Hasher<F>,
-> DatasetTreeCircuit<F, C, D, H> {
+> DatasetTreeCircuit<F, D> {
 
     // in-circuit sampling
     // TODO: make it more modular
     pub fn sample_slot_circuit(
         &mut self,
         builder: &mut CircuitBuilder::<F, D>,
-    )-> DatasetTargets<F,C,D,H>{
+    )-> DatasetTargets {
 
         // constants
         let zero = builder.zero();
@@ -266,17 +251,16 @@ impl<
         };
 
         // create MerkleTreeTargets struct
-        let mut d_targets = MerkleTreeTargets {
+        let mut d_targets = MerkleTreeTargets{
             leaf: slot_root,
             path_bits: d_path_bits,
             last_bits: d_last_bits,
             merkle_path: d_merkle_path,
-            _phantom: PhantomData,
         };
 
         // dataset reconstructed root
         let d_reconstructed_root =
-            MerkleTreeCircuit::<F,C,D,H>::reconstruct_merkle_root_circuit(builder, &mut d_targets);
+            MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit(builder, &mut d_targets);
 
         // expected Merkle root
         let d_expected_root = builder.add_virtual_hash();
@@ -309,7 +293,7 @@ impl<
 
             let mut perm_inputs:Vec<Target>= Vec::new();
             perm_inputs.extend_from_slice(&data_i);
-            let data_i_hash = builder.hash_n_to_hash_no_pad::<H>(perm_inputs);
+            let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(perm_inputs);
             // counter constant
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
@@ -337,22 +321,20 @@ impl<
                 path_bits:b_path_bits,
                 last_bits: b_last_bits.clone(),
                 merkle_path: b_merkle_path,
-                _phantom: PhantomData,
             };
 
             // reconstruct block root
-            let b_root = MerkleTreeCircuit::<F,C,D,H>::reconstruct_merkle_root_circuit(builder, &mut block_targets);
+            let b_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit(builder, &mut block_targets);
 
             let mut slot_targets = MerkleTreeTargets {
                 leaf: b_root,
                 path_bits:s_path_bits,
                 last_bits:s_last_bits.clone(),
                 merkle_path:s_merkle_path,
-                _phantom: PhantomData,
             };
 
             // reconstruct slot root with block root as leaf
-            let slot_reconstructed_root = MerkleTreeCircuit::<F,C,D,H>::reconstruct_merkle_root_circuit(builder, &mut slot_targets);
+            let slot_reconstructed_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit(builder, &mut slot_targets);
 
             // check equality with expected root
             for i in 0..NUM_HASH_OUT_ELTS {
@@ -370,7 +352,7 @@ impl<
 
         }
 
-        DatasetTargets::<F,C,D,H>{
+        DatasetTargets{
             dataset_proof: d_targets.merkle_path,
             dataset_root: d_expected_root,
             cell_data: data_targets,
@@ -378,7 +360,6 @@ impl<
             slot_index,
             slot_root: d_targets.leaf,
             slot_proofs: slot_sample_proofs,
-            _phantom: Default::default(),
         }
     }
 
@@ -387,7 +368,7 @@ impl<
         hash_inputs.extend_from_slice(&entropy.elements);
         hash_inputs.extend_from_slice(&slot_root.elements);
         hash_inputs.extend_from_slice(&ctr.elements);
-        let hash_out = builder.hash_n_to_hash_no_pad::<H>(hash_inputs);
+        let hash_out = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
         let cell_index_bits =  builder.low_bits(hash_out.elements[0], MAX_DEPTH, 64);
 
         cell_index_bits
@@ -396,7 +377,7 @@ impl<
     pub fn sample_slot_assign_witness(
         &mut self,
         pw: &mut PartialWitness<F>,
-        targets: &mut DatasetTargets<F,C,D,H>,
+        targets: &mut DatasetTargets,
         slot_index:usize,
         entropy:usize,
     ){
@@ -475,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_sample_cells() {
-        let dataset_t = DatasetTreeCircuit::<F,C,D,H>::default();
+        let dataset_t = DatasetTreeCircuit::<F,D>::default();
         let slot_index = 2;
         let entropy = 123;
         let proof = dataset_t.sample_slot(slot_index,entropy);
@@ -488,7 +469,7 @@ mod tests {
     #[test]
     fn test_sample_cells_circuit() -> Result<()> {
 
-        let mut dataset_t = DatasetTreeCircuit::<F,C,D,H>::default();
+        let mut dataset_t = DatasetTreeCircuit::<F,D>::default();
 
         let slot_index = 2;
         let entropy = 123;
@@ -532,7 +513,7 @@ mod tests {
     #[test]
     fn test_sample_cells_circuit_from_selected_slot() -> Result<()> {
 
-        let mut dataset_t = DatasetTreeCircuit::<F,C,D,H>::new_for_testing();
+        let mut dataset_t = DatasetTreeCircuit::<F,D>::new_for_testing();
 
         let slot_index = TESTING_SLOT_INDEX;
         let entropy = 123;

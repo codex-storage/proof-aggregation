@@ -18,6 +18,7 @@ use plonky2::plonk::proof::{Proof, ProofWithPublicInputs};
 use std::marker::PhantomData;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use serde::Serialize;
+use crate::circuits::params::HF;
 use crate::circuits::utils::usize_to_bits_le_padded;
 
 use crate::merkle_tree::merkle_safe::{MerkleTree, MerkleProofTarget};
@@ -29,17 +30,11 @@ use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
 // uses the Plonk's permutation argument to check that two elements are equal.
 // TODO: double check the need for mask
 #[derive(Clone)]
-pub struct MerkleTreeTargets<
-    F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
-> {
+pub struct MerkleTreeTargets{
     pub leaf: HashOutTarget,
     pub path_bits: Vec<BoolTarget>,
     pub last_bits: Vec<BoolTarget>,
     pub merkle_path: MerkleProofTarget,
-    pub _phantom: PhantomData<(C, H)>,
 }
 
 /// Merkle tree circuit contains the tree and functions for
@@ -47,26 +42,21 @@ pub struct MerkleTreeTargets<
 #[derive(Clone)]
 pub struct MerkleTreeCircuit<
     F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
 > {
-    pub tree: MerkleTree<F, H>,
-    pub _phantom: PhantomData<C>,
+    pub tree: MerkleTree<F>,
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F=F>,
     const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
-> MerkleTreeCircuit<F, C, D, H> {
+> MerkleTreeCircuit<F, D> {
 
     /// defines the computations inside the circuit and returns the targets used
     pub fn build_circuit(
         &mut self,
         builder: &mut CircuitBuilder::<F, D>
-    ) -> (MerkleTreeTargets<F, C, { D }, H>, HashOutTarget) {
+    ) -> (MerkleTreeTargets, HashOutTarget) {
         // Retrieve tree depth
         let depth = self.tree.depth();
 
@@ -85,12 +75,11 @@ impl<
         };
 
         // create MerkleTreeTargets struct
-        let mut targets = MerkleTreeTargets {
+        let mut targets = MerkleTreeTargets{
             leaf,
             path_bits,
             last_bits,
             merkle_path,
-            _phantom: PhantomData,
         };
 
         // Add Merkle proof verification constraints to the circuit
@@ -105,7 +94,7 @@ impl<
     pub fn assign_witness(
         &mut self,
         pw: &mut PartialWitness<F>,
-        targets: &mut MerkleTreeTargets<F, C, D, H>,
+        targets: &mut MerkleTreeTargets,
         leaf_index: usize,
     )-> Result<()> {
         // Get the total number of leaves and tree depth
@@ -151,9 +140,8 @@ impl<
     /// takes the params from the targets struct
     /// outputs the reconstructed merkle root
     pub fn reconstruct_merkle_root_circuit(
-        // &self,
         builder: &mut CircuitBuilder<F, D>,
-        targets: &mut MerkleTreeTargets<F, C, D, H>,
+        targets: &mut MerkleTreeTargets,
     ) -> HashOutTarget {
         let max_depth = targets.path_bits.len();
         let mut state: HashOutTarget = targets.leaf;
@@ -200,7 +188,7 @@ impl<
             perm_inputs.extend_from_slice(&left);
             perm_inputs.extend_from_slice(&right);
             perm_inputs.push(key);
-            state = builder.hash_n_to_hash_no_pad::<H>(perm_inputs);
+            state = builder.hash_n_to_hash_no_pad::<HF>(perm_inputs);
 
             i += 1;
         }
@@ -245,7 +233,7 @@ mod tests {
         let zero_hash = HashOut {
             elements: [GoldilocksField::ZERO; 4],
         };
-        let tree = MerkleTree::<F, H>::new(&leaves, zero_hash)?;
+        let tree = MerkleTree::<F>::new(&leaves, zero_hash)?;
 
         // select leaf index to prove
         let leaf_index: usize = 8;
@@ -262,9 +250,9 @@ mod tests {
         // create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let mut circuit_instance = MerkleTreeCircuit::<F, C, D, H> {
+        let mut circuit_instance = MerkleTreeCircuit::<F, D> {
             tree: tree.clone(),
-            _phantom: PhantomData,
+            // _phantom: PhantomData,
         };
         let (mut targets, expected_root_target) = circuit_instance.build_circuit(&mut builder);
 
@@ -312,15 +300,14 @@ mod tests {
         let zero_hash = HashOut {
             elements: [GoldilocksField::ZERO; 4],
         };
-        let tree = MerkleTree::<F, H>::new(&leaves, zero_hash)?;
+        let tree = MerkleTree::<F>::new(&leaves, zero_hash)?;
 
         let expected_root = tree.root()?;
 
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let mut circuit_instance = MerkleTreeCircuit::<F, C, D, H> {
+        let mut circuit_instance = MerkleTreeCircuit::<F, D> {
             tree: tree.clone(),
-            _phantom: PhantomData,
         };
         let (mut targets, expected_root_target) = circuit_instance.build_circuit(&mut builder);
 
