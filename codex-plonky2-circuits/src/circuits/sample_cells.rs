@@ -311,7 +311,7 @@ impl<
             perm_inputs.extend_from_slice(&data_i);
             let data_i_hash = builder.hash_n_to_hash_no_pad::<H>(perm_inputs);
             // counter constant
-            let ctr_target = builder.constant(F::from_canonical_u64(i as u64));
+            let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
             for i in 0..ctr.elements.len() {
                 if(i==0){
@@ -438,7 +438,7 @@ impl<
 
         // do the sample N times
         for i in 0..N_SAMPLES {
-            let cell_index_bits = calculate_cell_index_bits(entropy,slot_root,i);
+            let cell_index_bits = calculate_cell_index_bits(entropy,slot_root,i+1);
             let cell_index = bits_le_padded_to_usize(&cell_index_bits);
             // assign cell data
             let leaf = &slot.cell_data[cell_index];
