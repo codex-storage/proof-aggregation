@@ -291,6 +291,18 @@ impl<
         let mut data_targets =vec![];
         let mut slot_sample_proofs = vec![];
         let entropy_target = builder.add_virtual_hash();
+
+        //TODO: this can probably be optimized by supplying nCellsPerSlot as input to the circuit
+        let b_depth_target = builder.constant(F::from_canonical_u64(BOT_DEPTH as u64));
+        let mut b_last_index = builder.exp(two,b_depth_target,BOT_DEPTH);
+        b_last_index = builder.sub(b_last_index, one);
+        let b_last_bits = builder.split_le(b_last_index,BOT_DEPTH);
+
+        let s_depth_target = builder.constant(F::from_canonical_u64(MAX_DEPTH as u64));
+        let mut s_last_index = builder.exp(two,s_depth_target,MAX_DEPTH);
+        s_last_index = builder.sub(s_last_index, one);
+        let s_last_bits = builder.split_le(s_last_index,MAX_DEPTH);
+
         for i in 0..N_SAMPLES{
             // cell data targets
             let mut data_i = (0..N_FIELD_ELEMS_PER_CELL).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
@@ -312,17 +324,6 @@ impl<
             let mut b_path_bits = Self::calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr);
             let mut s_path_bits = b_path_bits.split_off(BOT_DEPTH);
 
-            //TODO: this can probably be optimized by supplying nCellsPerSlot as input to the circuit
-            let b_depth_target = builder.constant(F::from_canonical_u64(BOT_DEPTH as u64));
-            let mut b_last_index = builder.exp(two,b_depth_target,BOT_DEPTH);
-            b_last_index = builder.sub(b_last_index, one);
-            let b_last_bits = builder.split_le(b_last_index,BOT_DEPTH);
-
-            let s_depth_target = builder.constant(F::from_canonical_u64(MAX_DEPTH as u64));
-            let mut s_last_index = builder.exp(two,s_depth_target,MAX_DEPTH);
-            s_last_index = builder.sub(s_last_index, one);
-            let s_last_bits = builder.split_le(s_last_index,MAX_DEPTH);
-
             let mut b_merkle_path = MerkleProofTarget {
                 path: (0..BOT_DEPTH).map(|_| builder.add_virtual_hash()).collect(),
             };
@@ -334,7 +335,7 @@ impl<
             let mut block_targets = MerkleTreeTargets {
                 leaf: data_i_hash,
                 path_bits:b_path_bits,
-                last_bits: b_last_bits,
+                last_bits: b_last_bits.clone(),
                 merkle_path: b_merkle_path,
                 _phantom: PhantomData,
             };
@@ -345,7 +346,7 @@ impl<
             let mut slot_targets = MerkleTreeTargets {
                 leaf: b_root,
                 path_bits:s_path_bits,
-                last_bits:s_last_bits,
+                last_bits:s_last_bits.clone(),
                 merkle_path:s_merkle_path,
                 _phantom: PhantomData,
             };
