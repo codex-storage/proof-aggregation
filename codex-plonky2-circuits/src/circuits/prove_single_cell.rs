@@ -282,6 +282,11 @@ impl<
         let block_last_bits = (0..BOT_DEPTH).map(|_| builder.add_virtual_bool_target_safe()).collect::<Vec<_>>();
         let slot_last_bits = (0..(depth-BOT_DEPTH)).map(|_| builder.add_virtual_bool_target_safe()).collect::<Vec<_>>();
 
+        // mask bits (binary decomposition of last_index = nleaves - 1)
+        let block_mask_bits = (0..BOT_DEPTH+1).map(|_| builder.add_virtual_bool_target_safe()).collect::<Vec<_>>();
+        let slot_mask_bits = (0..(depth-BOT_DEPTH)+1).map(|_| builder.add_virtual_bool_target_safe()).collect::<Vec<_>>();
+
+
         // Merkle path (sibling hashes from leaf to root)
         let mut block_merkle_path = MerkleProofTarget {
             path: (0..BOT_DEPTH).map(|_| builder.add_virtual_hash()).collect(),
@@ -297,6 +302,7 @@ impl<
             leaf: leaf_hash,
             path_bits:block_path_bits,
             last_bits: block_last_bits,
+            mask_bits: block_mask_bits,
             merkle_path: block_merkle_path,
         };
 
@@ -308,6 +314,7 @@ impl<
             leaf: block_root,
             path_bits:slot_path_bits,
             last_bits:slot_last_bits,
+            mask_bits:slot_mask_bits,
             merkle_path:slot_merkle_path,
         };
 

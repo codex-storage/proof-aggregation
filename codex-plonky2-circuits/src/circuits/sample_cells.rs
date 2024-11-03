@@ -245,6 +245,8 @@ impl<
         d_last_index = builder.sub(d_last_index, one);
         let d_last_bits = builder.split_le(d_last_index,d_depth);
 
+        let d_mask_bits = builder.split_le(d_last_index,d_depth+1);
+
         // dataset Merkle path (sibling hashes from leaf to root)
         let d_merkle_path = MerkleProofTarget {
             path: (0..d_depth).map(|_| builder.add_virtual_hash()).collect(),
@@ -255,6 +257,7 @@ impl<
             leaf: slot_root,
             path_bits: d_path_bits,
             last_bits: d_last_bits,
+            mask_bits: d_mask_bits,
             merkle_path: d_merkle_path,
         };
 
@@ -282,10 +285,14 @@ impl<
         b_last_index = builder.sub(b_last_index, one);
         let b_last_bits = builder.split_le(b_last_index,BOT_DEPTH);
 
+        let b_mask_bits = builder.split_le(b_last_index,BOT_DEPTH+1);
+
         let s_depth_target = builder.constant(F::from_canonical_u64(MAX_DEPTH as u64));
         let mut s_last_index = builder.exp(two,s_depth_target,MAX_DEPTH);
         s_last_index = builder.sub(s_last_index, one);
         let s_last_bits = builder.split_le(s_last_index,MAX_DEPTH);
+
+        let s_mask_bits = builder.split_le(b_last_index,BOT_DEPTH+1);
 
         for i in 0..N_SAMPLES{
             // cell data targets
@@ -320,21 +327,23 @@ impl<
                 leaf: data_i_hash,
                 path_bits:b_path_bits,
                 last_bits: b_last_bits.clone(),
+                mask_bits: b_mask_bits.clone(),
                 merkle_path: b_merkle_path,
             };
 
             // reconstruct block root
-            let b_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit(builder, &mut block_targets);
+            let b_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut block_targets);
 
             let mut slot_targets = MerkleTreeTargets {
                 leaf: b_root,
                 path_bits:s_path_bits,
                 last_bits:s_last_bits.clone(),
+                mask_bits:s_mask_bits.clone(),
                 merkle_path:s_merkle_path,
             };
 
             // reconstruct slot root with block root as leaf
-            let slot_reconstructed_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit(builder, &mut slot_targets);
+            let slot_reconstructed_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut slot_targets);
 
             // check equality with expected root
             for i in 0..NUM_HASH_OUT_ELTS {
