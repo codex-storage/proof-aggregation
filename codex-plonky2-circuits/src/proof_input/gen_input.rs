@@ -355,6 +355,7 @@ mod tests {
     use crate::circuits::sample_cells::{CircuitParams, DatasetTreeCircuit, SampleCircuitInput};
     use crate::proof_input::test_params::{D, C, F, H, N_SLOTS};
 
+    // test sample cells (non-circuit)
     #[test]
     fn test_sample_cells() {
         let dataset_t = DatasetTree::<F, D>::new_for_testing();
@@ -365,6 +366,7 @@ mod tests {
         assert_eq!(res, true);
     }
 
+    // test sample cells in-circuit for a selected slot
     #[test]
     fn test_sample_cells_circuit_from_selected_slot() -> anyhow::Result<()> {
 

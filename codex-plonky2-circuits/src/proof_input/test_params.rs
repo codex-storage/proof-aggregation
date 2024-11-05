@@ -23,8 +23,99 @@ pub const ENTROPY: usize = 1234567; // external randomness
 pub const SEED: usize = 12345; // seed for creating fake data TODO: not used now
 
 pub const N_SLOTS: usize = 8; // number of slots in the dataset
-pub const TESTING_SLOT_INDEX: usize = 2; //the index of the slot to be sampled
+pub const TESTING_SLOT_INDEX: usize = 2; // the index of the slot to be sampled
 pub const N_CELLS: usize = 512; // number of cells in each slot
+
+/// Params struct
+pub struct Params {
+    pub max_depth: usize,
+    pub max_slots: usize,
+    pub cell_size: usize,
+    pub block_size: usize,
+    pub n_samples: usize,
+    pub entropy: usize,
+    pub seed: usize,
+    pub n_slots: usize,
+    pub testing_slot_index: usize,
+    pub n_cells: usize,
+}
+
+/// Implement the Default trait for Params using the hardcoded constants
+impl Default for Params {
+    fn default() -> Self {
+        Params {
+            max_depth: MAX_DEPTH,
+            max_slots: MAX_SLOTS,
+            cell_size: CELL_SIZE,
+            block_size: BLOCK_SIZE,
+            n_samples: N_SAMPLES,
+            entropy: ENTROPY,
+            seed: SEED,
+            n_slots: N_SLOTS,
+            testing_slot_index: TESTING_SLOT_INDEX,
+            n_cells: N_CELLS,
+        }
+    }
+}
+
+/// Implement a new function to create Params with custom values
+impl Params {
+    pub fn new(
+        max_depth: usize,
+        max_slots: usize,
+        cell_size: usize,
+        block_size: usize,
+        n_samples: usize,
+        entropy: usize,
+        seed: usize,
+        n_slots: usize,
+        testing_slot_index: usize,
+        n_cells: usize,
+    ) -> Self {
+        Params {
+            max_depth,
+            max_slots,
+            cell_size,
+            block_size,
+            n_samples,
+            entropy,
+            seed,
+            n_slots,
+            testing_slot_index,
+            n_cells,
+        }
+    }
+    // GOLDILOCKS_F_SIZE
+    pub fn goldilocks_f_size(&self) -> usize {
+        64
+    }
+
+    // N_FIELD_ELEMS_PER_CELL
+    pub fn n_field_elems_per_cell(&self) -> usize {
+        self.cell_size * 8 / self.goldilocks_f_size()
+    }
+
+    // BOT_DEPTH
+    pub fn bot_depth(&self) -> usize {
+        (self.block_size / self.cell_size).ilog2() as usize
+    }
+
+    // N_CELLS_IN_BLOCKS
+    pub fn n_cells_in_blocks(&self) -> usize {
+        1 << self.bot_depth()
+    }
+
+    // N_BLOCKS
+    pub fn n_blocks(&self) -> usize {
+        1 << (self.max_depth - self.bot_depth())
+    }
+
+    // DATASET_DEPTH
+    pub fn dataset_depth(&self) -> usize {
+        self.max_slots.ilog2() as usize
+    }
+}
+
 
 // computed constants
 pub const GOLDILOCKS_F_SIZE: usize = 64;
