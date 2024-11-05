@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use codex_plonky2_circuits::{
     merkle_tree::merkle_safe::MerkleProof,
-    circuits::safe_tree_circuit::MerkleTreeCircuit,
+    circuits::merkle_circuit::MerkleTreeCircuit,
 };
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher, PoseidonGoldilocksConfig};

@@ -5,15 +5,9 @@ This crate is an implementation of the [codex storage proofs circuits](https://g
 
 ## Code organization
 
-- [`capped_tree`](./src/merkle_tree/capped_tree.rs) is an adapted implementation of Merkle tree based on the original plonky2 merkle tree implementation.
-
-- [`capped_tree_circuit`](./src/circuits/capped_tree_circuit.rs) is the circuit implementation for regular merkle tree implementation (non-safe version) based on the above merkle tree implementation.
-
 - [`merkle_safe`](./src/merkle_tree/merkle_safe.rs) is the implementation of "safe" merkle tree used in codex, consistent with the one [here](https://github.com/codex-storage/nim-codex/blob/master/codex/merkletree/merkletree.nim).
 
-- [`safe_tree_circuit`](./src/circuits/safe_tree_circuit.rs) is the Plonky2 Circuit implementation of "safe" merkle tree above.
-
-- [`prove_single_cell`](./src/circuits/prove_single_cell.rs) is the Plonky2 Circuit implementation for proving a single cell in slot merkle tree. 
+- [`merkle_circuit`](./src/circuits/merkle_circuit) is the Plonky2 Circuit implementation of "safe" merkle tree above.
 
 - [`sample_cells`](./src/circuits/sample_cells.rs) is the Plonky2 Circuit implementation for sampling cells in dataset merkle tree.
 

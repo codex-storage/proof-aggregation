@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use anyhow::Result;
 
-use codex_plonky2_circuits::{merkle_tree::merkle_safe::MerkleTree, circuits::safe_tree_circuit::MerkleTreeCircuit};
+use codex_plonky2_circuits::{merkle_tree::merkle_safe::MerkleTree, circuits::merkle_circuit::MerkleTreeCircuit};
 use plonky2::field::types::Field;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher, PoseidonGoldilocksConfig};

@@ -8,7 +8,10 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
 /// Compression function which takes two 256 bit inputs (HashOut) and u64 key (which is converted to field element in the function)
 /// and returns a 256 bit output (HashOut).
-pub fn key_compress<F: RichField, H:Hasher<F> >(x: HashOut<F>, y: HashOut<F>, key: u64) -> HashOut<F> {
+pub fn key_compress<
+    F: RichField,
+    H:Hasher<F>
+>(x: HashOut<F>, y: HashOut<F>, key: u64) -> HashOut<F> {
 
     debug_assert_eq!(x.elements.len(), NUM_HASH_OUT_ELTS);
     debug_assert_eq!(y.elements.len(), NUM_HASH_OUT_ELTS);

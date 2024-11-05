@@ -5,7 +5,7 @@
 use std::marker::PhantomData;
 use anyhow::{ensure, Result};
 use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField};
+use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 use std::ops::Shr;
@@ -135,12 +135,6 @@ pub struct MerkleProof<F: RichField> {
     pub path: Vec<HashOut<F>>, // Sibling hashes from the leaf to the root
     pub nleaves: usize,     // Total number of leaves
     pub zero: HashOut<F>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MerkleProofTarget {
-    /// The Merkle digest of each sibling subtree, staying from the bottommost layer.
-    pub path: Vec<HashOutTarget>,
 }
 
 impl<F: RichField> MerkleProof<F> {
