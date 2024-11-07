@@ -10,7 +10,7 @@ use plonky2::hash::hash_types::RichField;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use codex_plonky2_circuits::circuits::params::TESTING_SLOT_INDEX;
-use codex_plonky2_circuits::circuits::sample_cells::DatasetTreeCircuit;
+use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 
 macro_rules! pretty_print {
     ($($arg:tt)*) => {
@@ -28,12 +28,12 @@ fn prepare_data<
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 >() -> Result<(
-    DatasetTreeCircuit<F, C, D, H>,
+    SampleCircuit<F, C, D, H>,
     usize,
     usize,
 )> {
     // Initialize the dataset tree with testing data
-    let mut dataset_t = DatasetTreeCircuit::<F,C,D,H>::new_for_testing();
+    let mut dataset_t = SampleCircuit::<F,C,D,H>::new_for_testing();
 
     let slot_index = TESTING_SLOT_INDEX;
     let entropy = 123;
@@ -47,7 +47,7 @@ fn build_circuit<
     const D: usize,
     H: Hasher<F> + AlgebraicHasher<F>,
 >(
-    dataset_tree: &mut DatasetTreeCircuit<F, C, D, H>,
+    dataset_tree: &mut SampleCircuit<F, C, D, H>,
     slot_index: usize,
     entropy: usize,
     // proofs: &[MerkleProof<F, H>],

@@ -25,7 +25,8 @@ pub(crate) fn usize_to_bits_le_padded(index: usize, bit_length: usize) -> Vec<bo
     bits
 }
 /// calculate the sampled cell index from entropy, slot root, and counter
-pub(crate) fn calculate_cell_index_bits<F: RichField>(entropy: &Vec<F>, slot_root: HashOut<F>, ctr: usize, depth: usize) -> Vec<bool> {
+/// this is the non-circuit version for testing
+pub(crate) fn calculate_cell_index_bits<F: RichField>(entropy: &Vec<F>, slot_root: HashOut<F>, ctr: usize, depth: usize, mask_bits: Vec<bool>) -> Vec<bool> {
     let ctr_field = F::from_canonical_u64(ctr as u64);
     let mut ctr_as_digest = HashOut::<F>::ZERO;
     ctr_as_digest.elements[0] = ctr_field;
@@ -37,7 +38,14 @@ pub(crate) fn calculate_cell_index_bits<F: RichField>(entropy: &Vec<F>, slot_roo
     let cell_index_bytes = hash_output.elements[0].to_canonical_u64();
 
     let cell_index_bits = usize_to_bits_le_padded(cell_index_bytes as usize, depth);
-    cell_index_bits
+
+    let mut masked_cell_index_bits = vec![];
+
+    for i in 0..depth{
+        masked_cell_index_bits.push(cell_index_bits[i] && mask_bits[i]);
+    }
+
+    masked_cell_index_bits
 }
 
 pub(crate) fn take_n_bits_from_bytes(bytes: &[u8], n: usize) -> Vec<bool> {

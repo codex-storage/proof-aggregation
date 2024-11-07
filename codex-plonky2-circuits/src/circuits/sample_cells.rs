@@ -5,25 +5,23 @@
 // - reconstruct the dataset merkle root using the slot root as leaf
 // - samples multiple cells by calling the sample_cells
 
-use anyhow::Result;
 use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::target::{BoolTarget, Target};
-use plonky2::iop::witness::{PartialWitness, WitnessWrite, Witness};
+use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher, GenericHashOut};
+use plonky2::plonk::config::GenericConfig;
 use std::marker::PhantomData;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use plonky2::hash::hashing::PlonkyPermutation;
-use crate::circuits::params::HF;
+use crate::circuits::params::{CircuitParams, HF};
 
-use crate::circuits::merkle_circuit::{MerkleTreeCircuit, MerkleTreeTargets, MerkleProofTarget};
-use crate::circuits::utils::{assign_hash_out_targets, bits_le_padded_to_usize, calculate_cell_index_bits};
+use crate::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
+use crate::circuits::utils::assign_hash_out_targets;
 
-// ------ Dataset Tree --------
-///dataset tree containing all slot trees
+/// circuit for sampling a slot in a dataset merkle tree
 #[derive(Clone)]
-pub struct DatasetTreeCircuit<
+pub struct SampleCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > {
@@ -34,7 +32,7 @@ pub struct DatasetTreeCircuit<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> DatasetTreeCircuit<F, D> {
+> SampleCircuit<F, D> {
     pub fn new(params: CircuitParams) -> Self{
         Self{
             params,
@@ -43,17 +41,8 @@ impl<
     }
 }
 
-// params used for the circuits
-// should be defined prior to building the circuit
-#[derive(Clone)]
-pub struct CircuitParams{
-    pub max_depth: usize,
-    pub max_log2_n_slots: usize,
-    pub block_tree_depth: usize,
-    pub n_field_elems_per_cell: usize,
-    pub n_samples: usize,
-}
-
+/// struct of input to the circuit as targets
+/// used to build the circuit and can be assigned after building
 #[derive(Clone)]
 pub struct SampleTargets {
 
@@ -65,13 +54,14 @@ pub struct SampleTargets {
     pub n_cells_per_slot: Target,
     pub n_slots_per_dataset: Target,
 
-    pub slot_proof: MerkleProofTarget, // proof that slot_root in dataset tree
+    pub slot_proof: MerkleProofTarget,
 
-    pub cell_data: Vec<Vec<Target>>,
+    pub cell_data: Vec<CellTarget>,
     pub merkle_paths: Vec<MerkleProofTarget>,
 }
 
-#[derive(Clone)]
+/// circuit input as field elements
+#[derive(Debug, PartialEq)]
 pub struct SampleCircuitInput<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -84,31 +74,42 @@ pub struct SampleCircuitInput<
     pub n_cells_per_slot: F,
     pub n_slots_per_dataset: F,
 
-    pub slot_proof: Vec<HashOut<F>>, // proof that slot_root in dataset tree
+    pub slot_proof: Vec<HashOut<F>>,
 
-    pub cell_data: Vec<Vec<F>>,
-    pub merkle_paths: Vec<Vec<HashOut<F>>>,
+    pub cell_data: Vec<Cell<F,D>>,
+    pub merkle_paths: Vec<MerklePath<F,D>>,
 
 }
 
-#[derive(Clone)]
+/// merkle path from leaf to root as vec of HashOut (4 Goldilocks field elems)
+#[derive(Clone, Debug, PartialEq)]
 pub struct MerklePath<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > {
-    path: Vec<HashOut<F>>
+    pub path: Vec<HashOut<F>>
 }
 
-#[derive(Clone)]
+/// a vec of cell targets
+#[derive(Clone, Debug, PartialEq)]
 pub struct CellTarget {
     pub data: Vec<Target>
+}
+
+/// cell data as field elements
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cell<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+> {
+    pub data: Vec<F>,
 }
 
 //------- circuit impl --------
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> DatasetTreeCircuit<F, D> {
+> SampleCircuit<F, D> {
 
     // in-circuit sampling
     // TODO: make it more modular
@@ -145,7 +146,9 @@ impl<
         // dataset last bits (binary decomposition of last_index = nleaves - 1)
         let dataset_last_index = builder.sub(n_slots_per_dataset, one);
         let d_last_bits = builder.split_le(dataset_last_index,max_log2_n_slots);
-        let d_mask_bits = builder.split_le(dataset_last_index,max_log2_n_slots+1);
+
+        // dataset mask bits
+        let mut d_mask_bits = builder.split_le(dataset_last_index,max_log2_n_slots+1);
 
         // dataset Merkle path (sibling hashes from leaf to root)
         let d_merkle_path = MerkleProofTarget {
@@ -182,25 +185,33 @@ impl<
         // virtual target for n_cells_per_slot
         let n_cells_per_slot = builder.add_virtual_target();
 
+        // calculate last index = n_cells_per_slot-1
         let slot_last_index = builder.sub(n_cells_per_slot, one);
+
+        // create the mask bits
+        // TODO: reuse this for block and slot trees
+        let mask_bits = builder.split_le(slot_last_index,max_depth);
+
+        // last and mask bits for block tree
         let mut b_last_bits = builder.split_le(slot_last_index,max_depth);
         let mut b_mask_bits = builder.split_le(slot_last_index,max_depth);
 
-
+        // last and mask bits for the slot tree
         let mut s_last_bits = b_last_bits.split_off(block_tree_depth);
         let mut s_mask_bits = b_mask_bits.split_off(block_tree_depth);
 
+        // pad mask bits with 0
         b_mask_bits.push(BoolTarget::new_unsafe(zero.clone()));
         s_mask_bits.push(BoolTarget::new_unsafe(zero.clone()));
 
         for i in 0..n_samples{
             // cell data targets
             let mut data_i = (0..n_field_elems_per_cell).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
-
+            // hash the cell data
             let mut hash_inputs:Vec<Target>= Vec::new();
             hash_inputs.extend_from_slice(&data_i);
             let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
-            // counter constant
+            // make the counter into hash digest
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
             for i in 0..ctr.elements.len() {
@@ -210,8 +221,8 @@ impl<
                     ctr.elements[i] = zero.clone();
                 }
             }
-            // paths
-            let mut b_path_bits = self.calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr);
+            // paths for block and slot
+            let mut b_path_bits = self.calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr, mask_bits.clone());
             let mut s_path_bits = b_path_bits.split_off(block_tree_depth);
 
             let mut b_merkle_path = MerkleProofTarget {
@@ -255,7 +266,10 @@ impl<
             };
             slot_sample_proof_target.path.extend_from_slice(&slot_targets.merkle_path.path);
 
-            data_targets.push(data_i);
+            let cell_i = CellTarget{
+                data: data_i
+            };
+            data_targets.push(cell_i);
             slot_sample_proofs.push(slot_sample_proof_target);
 
         }
@@ -273,7 +287,8 @@ impl<
         }
     }
 
-    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder::<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget) -> Vec<BoolTarget> {
+    /// calculate the cell index = H( entropy | slotRoot | counter ) `mod` nCells
+    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder::<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Vec<BoolTarget> {
         let mut hash_inputs:Vec<Target>= Vec::new();
         hash_inputs.extend_from_slice(&entropy.elements);
         hash_inputs.extend_from_slice(&slot_root.elements);
@@ -281,9 +296,17 @@ impl<
         let hash_out = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
         let cell_index_bits =  builder.low_bits(hash_out.elements[0], self.params.max_depth, 64);
 
-        cell_index_bits
+        let mut masked_cell_index_bits = vec![];
+
+        // extract the lowest 32 bits using the bit mask
+        for i in 0..self.params.max_depth{
+            masked_cell_index_bits.push(BoolTarget::new_unsafe(builder.mul(mask_bits[i].target, cell_index_bits[i].target)));
+        }
+
+        masked_cell_index_bits
     }
 
+    /// helper method to assign the targets in the circuit to actual field elems
     pub fn sample_slot_assign_witness(
         &self,
         pw: &mut PartialWitness<F>,
@@ -323,16 +346,13 @@ impl<
 
         // do the sample N times
         for i in 0..n_samples {
-            let cell_index_bits = calculate_cell_index_bits(&witnesses.entropy,witnesses.slot_root,i+1,max_depth);
-            let cell_index = bits_le_padded_to_usize(&cell_index_bits);
             // assign cell data
-            let leaf = witnesses.cell_data[i].clone();
+            let leaf = witnesses.cell_data[i].data.clone();
             for j in 0..n_field_elems_per_cell{
-                pw.set_target(targets.cell_data[i][j], leaf[j]);
+                pw.set_target(targets.cell_data[i].data[j], leaf[j]);
             }
-
             // assign proof for that cell
-            let cell_proof = witnesses.merkle_paths[i].clone();
+            let cell_proof = witnesses.merkle_paths[i].path.clone();
             for k in 0..max_depth {
                 pw.set_hash_target(targets.merkle_paths[i].path[k], cell_proof[k])
             }

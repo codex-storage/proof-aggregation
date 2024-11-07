@@ -2,26 +2,19 @@ use anyhow::Result;
 use plonky2::field::extension::Extendable;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
-use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField, NUM_HASH_OUT_ELTS};
+use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::hash::hashing::PlonkyPermutation;
 use plonky2::hash::poseidon::PoseidonHash;
-use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::iop::witness::{PartialWitness, Witness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, VerifierCircuitData};
+use plonky2::plonk::circuit_data::CircuitConfig;
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher, PoseidonGoldilocksConfig};
-use plonky2::plonk::proof::{Proof, ProofWithPublicInputs};
-use std::marker::PhantomData;
-use std::os::macos::raw::stat;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use serde::Serialize;
-use crate::circuits::keyed_compress::key_compress_circuit;
-use crate::circuits::params::HF;
 use crate::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
-use crate::circuits::utils::{add_assign_hash_out_target, assign_bool_targets, assign_hash_out_targets, mul_hash_out_target, usize_to_bits_le_padded};
+use crate::circuits::utils::{assign_bool_targets, assign_hash_out_targets, usize_to_bits_le_padded};
 
 use crate::merkle_tree::merkle_safe::MerkleTree;
-use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
 
 /// the input to the merkle tree circuit
 #[derive(Clone)]
@@ -115,7 +108,6 @@ pub fn assign_witness<
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
     use plonky2::hash::hash_types::HashOut;
     use plonky2::hash::poseidon::PoseidonHash;
     use super::*;
@@ -124,11 +116,8 @@ mod tests {
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2_field::goldilocks_field::GoldilocksField;
-    use crate::circuits::merkle_circuit::{MerkleTreeCircuit, };
-    use crate::circuits::sample_cells::{CircuitParams, DatasetTreeCircuit, SampleCircuitInput};
     use crate::circuits::utils::usize_to_bits_le_padded;
     use crate::merkle_tree::merkle_safe::MerkleTree;
-    use crate::proof_input::test_params::{D, C, F, H, N_SLOTS, MAX_DEPTH};
 
     // NOTE: for now these tests don't check the reconstructed root is equal to expected_root
 // will be fixed later, but for that test check the prove_single_cell tests

@@ -8,3 +8,14 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;
 // will look into this later.
 pub type HF = PoseidonHash;
 
+// params used for the circuits
+// should be defined prior to building the circuit
+#[derive(Clone, Debug)]
+pub struct CircuitParams{
+    pub max_depth: usize,
+    pub max_log2_n_slots: usize,
+    pub block_tree_depth: usize,
+    pub n_field_elems_per_cell: usize,
+    pub n_samples: usize,
+}
+

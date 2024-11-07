@@ -46,7 +46,8 @@ impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > MerkleTreeCircuit<F, D> {
-    
+
+
     pub fn new() -> Self{
         Self{
             phantom_data: Default::default(),
@@ -109,7 +110,7 @@ impl<
 
     /// takes the params from the targets struct
     /// outputs the reconstructed merkle root
-    /// this one uses the mask bits
+    /// this one uses the mask bits to select the right layer
     pub fn reconstruct_merkle_root_circuit_with_mask(
         builder: &mut CircuitBuilder<F, D>,
         targets: &mut MerkleTreeTargets,
@@ -160,6 +161,7 @@ impl<
             i += 1;
         }
 
+        // select the right layer using the mask bits
         // another way to do this is to use builder.select
         // but that might be less efficient & more constraints
         let mut reconstructed_root  = HashOutTarget::from_vec([builder.zero();4].to_vec());
@@ -169,8 +171,7 @@ impl<
             add_assign_hash_out_target(builder,&mut reconstructed_root, &mul_result);
         }
 
-        // reconstructed_root
-        state[max_depth]
+        reconstructed_root
 
     }
 }

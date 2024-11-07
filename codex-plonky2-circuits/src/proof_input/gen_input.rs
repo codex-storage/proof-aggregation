@@ -1,144 +1,101 @@
-use anyhow::Result;
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::plonk::config::{GenericConfig, Hasher};
 use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::params::HF;
-use crate::proof_input::test_params::{BOT_DEPTH, DATASET_DEPTH, MAX_DEPTH, N_BLOCKS, N_CELLS, N_CELLS_IN_BLOCKS, N_FIELD_ELEMS_PER_CELL, N_SAMPLES, TESTING_SLOT_INDEX};
+use crate::proof_input::test_params::Params;
 use crate::circuits::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le_padded};
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
+use crate::circuits::sample_cells::Cell;
+
+// #[derive(Clone)]
+// pub struct Cell<
+//     F: RichField + Extendable<D> + Poseidon2,
+//     const D: usize,
+// > {
+//     pub data: Vec<F>, // cell data as field elements
+// }
+
+// impl<
+//     F: RichField + Extendable<D> + Poseidon2,
+//     const D: usize,
+// > Cell<F, D> {
+/// Create a new cell with random data, using the parameters from `Params`
+pub fn new_random_cell<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+>(params: &Params) -> Cell<F,D> {
+    let data = (0..params.n_field_elems_per_cell())
+        .map(|_| F::rand())
+        .collect::<Vec<_>>();
+    Cell::<F,D> {
+        data,
+    }
+}
+// }
 
 #[derive(Clone)]
 pub struct SlotTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > {
-    pub tree: MerkleTree<F>, // slot tree
+    pub tree: MerkleTree<F>,         // slot tree
     pub block_trees: Vec<MerkleTree<F>>, // vec of block trees
-    pub cell_data: Vec<Cell<F,D>>, // cell data as field elements
-}
-
-#[derive(Clone)]
-pub struct Cell<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-> {
-    pub data: Vec<F>, // cell data as field elements
-}
-
-impl<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-> Default for Cell<F, D> {
-    /// default cell with random data
-    fn default() -> Self {
-        let data = (0..N_FIELD_ELEMS_PER_CELL)
-            .map(|j| F::rand())
-            .collect::<Vec<_>>();
-        Self{
-            data,
-        }
-    }
-}
-
-impl<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-> Default for SlotTree<F, D> {
-    /// slot tree with fake data, for testing only
-    fn default() -> Self {
-        // generate fake cell data
-        let mut cell_data = (0..N_CELLS)
-            .map(|i|{
-                Cell::<F,D>::default()
-            })
-            .collect::<Vec<_>>();
-        Self::new(cell_data)
-    }
+    pub cell_data: Vec<Cell<F, D>>,  // cell data as field elements
+    pub params: Params,              // parameters
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > SlotTree<F, D> {
-    /// Slot tree with fake data, for testing only
-    pub fn new_for_testing(cells: Vec<Cell<F, D>>) -> Self {
-        // Hash the cell data block to create leaves for one block
-        let leaves_block: Vec<HashOut<F>> = cells
-            .iter()
-            .map(|element| {
-                HF::hash_no_pad(&element.data)
-            })
-            .collect();
+    /// Create a slot tree with fake data, for testing only
+    pub fn new_default(params: &Params) -> Self {
+        // generate fake cell data
+        let cell_data = (0..params.n_cells)
+            .map(|_| new_random_cell(params))
+            .collect::<Vec<_>>();
+        Self::new(cell_data, params.clone())
+    }
 
-        // Zero hash
+    /// Create a new slot tree with the supplied cell data and parameters
+    pub fn new(cells: Vec<Cell<F, D>>, params: Params) -> Self {
+        let leaves: Vec<HashOut<F>> = cells
+            .iter()
+            .map(|element| HF::hash_no_pad(&element.data))
+            .collect();
         let zero = HashOut {
             elements: [F::ZERO; 4],
         };
+        let n_blocks = params.n_blocks_test();
+        let n_cells_in_blocks = params.n_cells_in_blocks();
 
-        // Create a block tree from the leaves of one block
-        let b_tree = Self::get_block_tree(&leaves_block);
-
-        // Now replicate this block tree for all N_BLOCKS blocks
-        let block_trees = vec![b_tree; N_BLOCKS];
-
-        // Get the roots of block trees
+        let block_trees = (0..n_blocks)
+            .map(|i| {
+                let start = i * n_cells_in_blocks;
+                let end = (i + 1) * n_cells_in_blocks;
+                Self::get_block_tree(&leaves[start..end].to_vec())
+            })
+            .collect::<Vec<_>>();
         let block_roots = block_trees
             .iter()
             .map(|t| t.root().unwrap())
-            .collect::<Vec<_>>();
-
-        // Create the slot tree from block roots
-        let slot_tree = MerkleTree::<F>::new(&block_roots, zero).unwrap();
-
-        // Create the full cell data and cell hash by repeating the block data
-        let cell_data = vec![cells.clone(); N_BLOCKS].concat();
-
-        // Return the constructed Self
-        Self {
-            tree: slot_tree,
-            block_trees,
-            cell_data,
-        }
-    }
-    /// same as default but with supplied cell data
-    pub fn new(cells: Vec<Cell<F, D>>) -> Self {
-        let leaves: Vec<HashOut<F>> = cells
-            .iter()
-            .map(|element| {
-                HF::hash_no_pad(&element.data)
-            })
-            .collect();
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
-        let block_trees = (0..N_BLOCKS as usize)
-            .map(|i| {
-                let start = i * N_CELLS_IN_BLOCKS;
-                let end = (i + 1) * N_CELLS_IN_BLOCKS;
-                Self::get_block_tree(&leaves[start..end].to_vec())
-                // MerkleTree::<F> { tree: b_tree }
-            })
-            .collect::<Vec<_>>();
-        let block_roots = block_trees.iter()
-            .map(|t| {
-                t.root().unwrap()
-            })
             .collect::<Vec<_>>();
         let slot_tree = MerkleTree::<F>::new(&block_roots, zero).unwrap();
         Self {
             tree: slot_tree,
             block_trees,
             cell_data: cells,
+            params,
         }
     }
 
-    /// generates a proof for given leaf index
-    /// the path in the proof is a combined block and slot path to make up the full path
+    /// Generates a proof for the given leaf index
+    /// The path in the proof is a combined block and slot path to make up the full path
     pub fn get_proof(&self, index: usize) -> MerkleProof<F> {
-        let block_index = index / N_CELLS_IN_BLOCKS;
-        let leaf_index = index % N_CELLS_IN_BLOCKS;
+        let block_index = index / self.params.n_cells_in_blocks();
+        let leaf_index = index % self.params.n_cells_in_blocks();
         let block_proof = self.block_trees[block_index].get_proof(leaf_index).unwrap();
         let slot_proof = self.tree.get_proof(block_index).unwrap();
 
@@ -147,20 +104,20 @@ impl<
         combined_path.extend(slot_proof.path.clone());
 
         MerkleProof::<F> {
-            index: index,
+            index,
             path: combined_path,
             nleaves: self.cell_data.len(),
             zero: block_proof.zero.clone(),
         }
     }
 
-    /// verify the given proof for slot tree, checks equality with given root
+    /// Verify the given proof for slot tree, checks equality with the given root
     pub fn verify_cell_proof(&self, proof: MerkleProof<F>, root: HashOut<F>) -> anyhow::Result<bool> {
-        let mut block_path_bits = usize_to_bits_le_padded(proof.index, MAX_DEPTH);
-        let last_index = N_CELLS - 1;
-        let mut block_last_bits = usize_to_bits_le_padded(last_index, MAX_DEPTH);
+        let mut block_path_bits = usize_to_bits_le_padded(proof.index, self.params.max_depth);
+        let last_index = self.params.n_cells - 1;
+        let mut block_last_bits = usize_to_bits_le_padded(last_index, self.params.max_depth);
 
-        let split_point = BOT_DEPTH;
+        let split_point = self.params.bot_depth();
 
         let slot_last_bits = block_last_bits.split_off(split_point);
         let slot_path_bits = block_path_bits.split_off(split_point);
@@ -170,8 +127,18 @@ impl<
         let mut block_path = proof.path;
         let slot_path = block_path.split_off(split_point);
 
-        let block_res = MerkleProof::<F>::reconstruct_root2(leaf_hash, block_path_bits.clone(), block_last_bits.clone(), block_path);
-        let reconstructed_root = MerkleProof::<F>::reconstruct_root2(block_res.unwrap(), slot_path_bits, slot_last_bits, slot_path);
+        let block_res = MerkleProof::<F>::reconstruct_root2(
+            leaf_hash,
+            block_path_bits.clone(),
+            block_last_bits.clone(),
+            block_path,
+        );
+        let reconstructed_root = MerkleProof::<F>::reconstruct_root2(
+            block_res.unwrap(),
+            slot_path_bits,
+            slot_last_bits,
+            slot_path,
+        );
 
         Ok(reconstructed_root.unwrap() == root)
     }
@@ -187,50 +154,49 @@ impl<
 }
 
 // ------ Dataset Tree --------
-///dataset tree containing all slot trees
+/// Dataset tree containing all slot trees
 #[derive(Clone)]
 pub struct DatasetTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > {
-    pub tree: MerkleTree<F>, // dataset tree
+    pub tree: MerkleTree<F>,          // dataset tree
     pub slot_trees: Vec<SlotTree<F, D>>, // vec of slot trees
+    pub params: Params,               // parameters
 }
 
-/// Dataset Merkle proof struct, containing the dataset proof and N_SAMPLES proofs.
+/// Dataset Merkle proof struct, containing the dataset proof and sampled proofs.
 #[derive(Clone)]
-pub struct DatasetProof<F: RichField> {
-    pub slot_index: F,
-    pub entropy: HashOut<F>,
-    pub dataset_proof: MerkleProof<F>,       // proof for dataset level tree
-    pub slot_proofs: Vec<MerkleProof<F>>, // proofs for sampled slot, contains N_SAMPLES proofs
-    pub cell_data: Vec<Vec<F>>,
-}
-
-impl<
+pub struct DatasetProof<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> Default for DatasetTree<F, D> {
-    /// dataset tree with fake data, for testing only
-    fn default() -> Self {
-        let mut slot_trees = vec![];
-        let n_slots = 1 << DATASET_DEPTH;
-        for i in 0..n_slots {
-            slot_trees.push(SlotTree::<F, D>::default());
-        }
-        Self::new(slot_trees)
-    }
+> {
+    pub slot_index: F,
+    pub entropy: HashOut<F>,
+    pub dataset_proof: MerkleProof<F>,    // proof for dataset level tree
+    pub slot_proofs: Vec<MerkleProof<F>>, // proofs for sampled slot
+    pub cell_data: Vec<Cell<F,D>>,
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 > DatasetTree<F, D> {
-    /// dataset tree with fake data, for testing only
-    /// create data for only the TESTING_SLOT_INDEX in params file
-    pub fn new_for_testing() -> Self {
+    /// Dataset tree with fake data, for testing only
+    pub fn new_default(params: &Params) -> Self {
         let mut slot_trees = vec![];
-        let n_slots = 1 << DATASET_DEPTH;
+        let n_slots = 1 << params.dataset_depth_test();
+        for _ in 0..n_slots {
+            slot_trees.push(SlotTree::<F, D>::new_default(params));
+        }
+        Self::new(slot_trees, params.clone())
+    }
+
+    /// Create data for only the specified slot index in params
+    pub fn new_for_testing(params: &Params) -> Self {
+        let mut slot_trees = vec![];
+        // let n_slots = 1 << params.dataset_depth();
+        let n_slots = params.n_slots;
         // zero hash
         let zero = HashOut {
             elements: [F::ZERO; 4],
@@ -239,34 +205,34 @@ impl<
             tree: MerkleTree::<F>::new(&[zero.clone()], zero.clone()).unwrap(),
             block_trees: vec![],
             cell_data: vec![],
+            params: params.clone(),
         };
         for i in 0..n_slots {
-            if (i == TESTING_SLOT_INDEX) {
-                slot_trees.push(SlotTree::<F, D>::default());
+            if i == params.testing_slot_index {
+                slot_trees.push(SlotTree::<F, D>::new_default(params));
             } else {
                 slot_trees.push(zero_slot.clone());
             }
         }
-        // get the roots or slot trees
-        let slot_roots = slot_trees.iter()
-            .map(|t| {
-                t.tree.root().unwrap()
-            })
+        // get the roots of slot trees
+        let slot_roots = slot_trees
+            .iter()
+            .map(|t| t.tree.root().unwrap())
             .collect::<Vec<_>>();
         let dataset_tree = MerkleTree::<F>::new(&slot_roots, zero).unwrap();
         Self {
             tree: dataset_tree,
             slot_trees,
+            params: params.clone(),
         }
     }
 
-    /// same as default but with supplied slot trees
-    pub fn new(slot_trees: Vec<SlotTree<F, D>>) -> Self {
-        // get the roots or slot trees
-        let slot_roots = slot_trees.iter()
-            .map(|t| {
-                t.tree.root().unwrap()
-            })
+    /// Same as default but with supplied slot trees
+    pub fn new(slot_trees: Vec<SlotTree<F, D>>, params: Params) -> Self {
+        // get the roots of slot trees
+        let slot_roots = slot_trees
+            .iter()
+            .map(|t| t.tree.root().unwrap())
             .collect::<Vec<_>>();
         // zero hash
         let zero = HashOut {
@@ -276,20 +242,24 @@ impl<
         Self {
             tree: dataset_tree,
             slot_trees,
+            params,
         }
     }
 
-    /// generates a dataset level proof for given slot index
-    /// just a regular merkle tree proof
+    /// Generates a dataset level proof for the given slot index
+    /// Just a regular Merkle tree proof
     pub fn get_proof(&self, index: usize) -> MerkleProof<F> {
         let dataset_proof = self.tree.get_proof(index).unwrap();
         dataset_proof
     }
 
-    /// generates a proof for given slot index
-    /// also takes entropy so it can use it sample the slot
-    pub fn sample_slot(&self, index: usize, entropy: usize) -> DatasetProof<F> {
-        let dataset_proof = self.tree.get_proof(index).unwrap();
+    /// Generates a proof for the given slot index
+    /// Also takes entropy so it can use it to sample the slot
+    pub fn sample_slot(&self, index: usize, entropy: usize) -> DatasetProof<F,D> {
+        let mut dataset_proof = self.tree.get_proof(index).unwrap();
+        // println!("d proof len = {}", dataset_proof.path.len());
+        Self::pad_proof(&mut dataset_proof, self.params.dataset_depth());
+        // println!("d proof len = {}", dataset_proof.path.len());
         let slot = &self.slot_trees[index];
         let slot_root = slot.tree.root().unwrap();
         let mut slot_proofs = vec![];
@@ -298,12 +268,24 @@ impl<
         let mut entropy_as_digest = HashOut::<F>::ZERO;
         entropy_as_digest.elements[0] = entropy_field;
         // get the index for cell from H(slot_root|counter|entropy)
-        for i in 0..N_SAMPLES {
-            let cell_index_bits = calculate_cell_index_bits(&entropy_as_digest.elements.to_vec(), slot_root, i+1, MAX_DEPTH);
+        let mask_bits = usize_to_bits_le_padded(self.params.n_cells-1, self.params.max_depth+1);
+        for i in 0..self.params.n_samples {
+            let cell_index_bits = calculate_cell_index_bits(
+                &entropy_as_digest.elements.to_vec(),
+                slot_root,
+                i + 1,
+                self.params.max_depth,
+                mask_bits.clone()
+            );
             let cell_index = bits_le_padded_to_usize(&cell_index_bits);
-            let s_proof = slot.get_proof(cell_index);
+            let mut s_proof = slot.get_proof(cell_index);
+            Self::pad_proof(&mut s_proof, self.params.max_depth);
             slot_proofs.push(s_proof);
-            cell_data.push(slot.cell_data[cell_index].data.clone());
+            let data_i = slot.cell_data[cell_index].data.clone();
+            let cell_i = Cell::<F,D>{
+                data: data_i
+            };
+            cell_data.push(cell_i);
         }
 
         DatasetProof {
@@ -315,28 +297,39 @@ impl<
         }
     }
 
-    // verify the sampling - non-circuit version
-    pub fn verify_sampling(&self, proof: DatasetProof<F>) -> bool {
-        let slot = &self.slot_trees[proof.slot_index.to_canonical_u64() as usize];
+    pub fn pad_proof(merkle_proof: &mut MerkleProof<F>, max_depth: usize){
+        for i in merkle_proof.path.len()..max_depth{
+            merkle_proof.path.push(HashOut::<F>::ZERO);
+        }
+    }
+
+    // Verify the sampling - non-circuit version
+    pub fn verify_sampling(&self, proof: DatasetProof<F,D>) -> bool {
+        let slot_index = proof.slot_index.to_canonical_u64() as usize;
+        let slot = &self.slot_trees[slot_index];
         let slot_root = slot.tree.root().unwrap();
         // check dataset level proof
         let d_res = proof.dataset_proof.verify(slot_root, self.tree.root().unwrap());
-        if (d_res.unwrap() == false) {
+        if d_res.unwrap() == false {
             return false;
         }
         // sanity check
-        assert_eq!(N_SAMPLES, proof.slot_proofs.len());
+        assert_eq!(self.params.n_samples, proof.slot_proofs.len());
         // get the index for cell from H(slot_root|counter|entropy)
-        for i in 0..N_SAMPLES {
-            // let entropy_field = F::from_canonical_u64(proof.entropy as u64);
-            // let mut entropy_as_digest = HashOut::<F>::ZERO;
-            // entropy_as_digest.elements[0] = entropy_field;
-            let cell_index_bits = calculate_cell_index_bits(&proof.entropy.elements.to_vec(), slot_root, i+1, MAX_DEPTH);
+        let mask_bits = usize_to_bits_le_padded(self.params.n_cells -1, self.params.max_depth);
+        for i in 0..self.params.n_samples {
+            let cell_index_bits = calculate_cell_index_bits(
+                &proof.entropy.elements.to_vec(),
+                slot_root,
+                i + 1,
+                self.params.max_depth,
+                mask_bits.clone(),
+            );
             let cell_index = bits_le_padded_to_usize(&cell_index_bits);
-            //check the cell_index is the same as one in the proof
+            // check the cell_index is the same as one in the proof
             assert_eq!(cell_index, proof.slot_proofs[i].index);
             let s_res = slot.verify_cell_proof(proof.slot_proofs[i].clone(), slot_root);
-            if (s_res.unwrap() == false) {
+            if s_res.unwrap() == false {
                 return false;
             }
         }
@@ -352,76 +345,82 @@ mod tests {
     use plonky2::plonk::config::GenericConfig;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use crate::circuits::sample_cells::{CircuitParams, DatasetTreeCircuit, SampleCircuitInput};
-    use crate::proof_input::test_params::{D, C, F, H, N_SLOTS};
+    use crate::circuits::params::CircuitParams;
+    use crate::circuits::sample_cells::{MerklePath, SampleCircuit, SampleCircuitInput};
+    use crate::proof_input::test_params::{C, D, F};
 
-    // test sample cells (non-circuit)
+    // Test sample cells (non-circuit)
     #[test]
     fn test_sample_cells() {
-        let dataset_t = DatasetTree::<F, D>::new_for_testing();
-        let slot_index = 2;
-        let entropy = 2;
-        let proof = dataset_t.sample_slot(slot_index,entropy);
+        let params = Params::default();
+        let dataset_t = DatasetTree::<F, D>::new_for_testing(&params);
+        let slot_index = params.testing_slot_index;
+        let entropy = params.entropy; // Use the entropy from Params if desired
+        let proof = dataset_t.sample_slot(slot_index, entropy);
         let res = dataset_t.verify_sampling(proof);
         assert_eq!(res, true);
     }
 
-    // test sample cells in-circuit for a selected slot
+    // Test sample cells in-circuit for a selected slot
     #[test]
     fn test_sample_cells_circuit_from_selected_slot() -> anyhow::Result<()> {
+        let params = Params::default();
+        let dataset_t = DatasetTree::<F, D>::new_for_testing(&params);
 
-        let mut dataset_t = DatasetTree::<F, D>::new_for_testing();
+        let slot_index = params.testing_slot_index;
+        let entropy = params.entropy; // Use the entropy from Params if desired
 
-        let slot_index = TESTING_SLOT_INDEX;
-        let entropy = 123;
-
-        // sanity check
-        let proof = dataset_t.sample_slot(slot_index,entropy);
+        // Sanity check
+        let proof = dataset_t.sample_slot(slot_index, entropy);
         let slot_root = dataset_t.slot_trees[slot_index].tree.root().unwrap();
-        let res = dataset_t.verify_sampling(proof.clone());
-        assert_eq!(res, true);
+        // let res = dataset_t.verify_sampling(proof.clone());
+        // assert_eq!(res, true);
 
-        // create the circuit
+        // Create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let circuit_params = CircuitParams{
-            max_depth: MAX_DEPTH,
-            max_log2_n_slots: DATASET_DEPTH,
-            block_tree_depth: BOT_DEPTH,
-            n_field_elems_per_cell: N_FIELD_ELEMS_PER_CELL,
-            n_samples: N_SAMPLES,
+        let circuit_params = CircuitParams {
+            max_depth: params.max_depth,
+            max_log2_n_slots: params.dataset_depth(),
+            block_tree_depth: params.bot_depth(),
+            n_field_elems_per_cell: params.n_field_elems_per_cell(),
+            n_samples: params.n_samples,
         };
-        let circ = DatasetTreeCircuit::new(circuit_params);
+        let circ = SampleCircuit::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit(&mut builder);
 
-        // create a PartialWitness and assign
+        // Create a PartialWitness and assign
         let mut pw = PartialWitness::new();
 
         let mut slot_paths = vec![];
-        for i in 0..N_SAMPLES{
+        for i in 0..params.n_samples {
             let path = proof.slot_proofs[i].path.clone();
-            slot_paths.push(path);
-            //TODO: need to be padded
+            let mp = MerklePath::<F,D>{
+              path,
+            };
+            slot_paths.push(mp);
         }
+        println!("circuit params = {:?}", circuit_params);
 
-        let witness = SampleCircuitInput::<F,D>{
+        let witness = SampleCircuitInput::<F, D> {
             entropy: proof.entropy.elements.clone().to_vec(),
             dataset_root: dataset_t.tree.root().unwrap(),
             slot_index: proof.slot_index.clone(),
             slot_root,
-            n_cells_per_slot: F::from_canonical_u64((2_u32.pow(MAX_DEPTH as u32)) as u64),
-            n_slots_per_dataset: F::from_canonical_u64((2_u32.pow(DATASET_DEPTH as u32)) as u64),
+            n_cells_per_slot: F::from_canonical_usize(params.n_cells),
+            n_slots_per_dataset: F::from_canonical_usize(params.n_slots),
             slot_proof: proof.dataset_proof.path.clone(),
             cell_data: proof.cell_data.clone(),
             merkle_paths: slot_paths,
         };
 
-        println!("dataset ={:?}",dataset_t.slot_trees[0].tree.layers);
+        println!("dataset = {:?}", witness.slot_proof.clone());
+        println!("n_slots_per_dataset = {:?}", witness.n_slots_per_dataset.clone());
 
-        circ.sample_slot_assign_witness(&mut pw, &mut targets,witness);
+        circ.sample_slot_assign_witness(&mut pw, &mut targets, witness);
 
-        // build the circuit
+        // Build the circuit
         let data = builder.build::<C>();
         println!("circuit size = {:?}", data.common.degree_bits());
 
@@ -430,7 +429,7 @@ mod tests {
         let proof_with_pis = data.prove(pw)?;
         println!("prove_time = {:?}", start_time.elapsed());
 
-        // verify the proof
+        // Verify the proof
         let verifier_data = data.verifier_data();
         assert!(
             verifier_data.verify(proof_with_pis).is_ok(),
