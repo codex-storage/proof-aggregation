@@ -7,10 +7,10 @@ use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
 /// Compression function which takes two 256 bit inputs (HashOut) and u64 key (which is converted to field element in the function)
-/// and returns a 256 bit output (HashOut).
+/// and returns a 256 bit output (HashOut /  4 Goldilocks field elems).
 pub fn key_compress<
-    F: RichField, //+ Extendable<D> + Poseidon2,
-    // const D: usize,
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
     H:Hasher<F>
 >(x: HashOut<F>, y: HashOut<F>, key: u64) -> HashOut<F> {
 
@@ -58,7 +58,7 @@ pub fn key_compress_circuit<
 
 #[cfg(test)]
 mod tests {
-    use plonky2::hash::poseidon::PoseidonHash;
+    // use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
     use plonky2_field::types::Field;
     use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;
@@ -66,7 +66,7 @@ mod tests {
     // types
     pub const D: usize = 2;
     pub type C = PoseidonGoldilocksConfig;
-    pub type F = <C as GenericConfig<D>>::F; // this is the goldilocks field
+    pub type F = <C as GenericConfig<D>>::F;
     pub type H = Poseidon2Hash;
 
     /// tests the non-circuit key_compress with concrete cases
@@ -128,7 +128,7 @@ mod tests {
 
         // Iterate over each key and test key_compress output
         for (key, &expected) in expected_outputs.iter().enumerate() {
-            let output = key_compress::<F, H>(inp1, inp2, key as u64);
+            let output = key_compress::<F, D, H>(inp1, inp2, key as u64);
 
             // Assert that output matches the expected result
             assert_eq!(output.elements, expected, "Output mismatch for key: {}", key);

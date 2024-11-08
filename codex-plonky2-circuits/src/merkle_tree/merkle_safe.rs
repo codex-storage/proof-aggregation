@@ -9,7 +9,9 @@ use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 use std::ops::Shr;
+use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
+use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::keyed_compress::key_compress;
 use crate::circuits::params::HF;
 
@@ -21,18 +23,24 @@ pub const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
 
 /// Merkle tree struct, containing the layers, compression function, and zero hash.
 #[derive(Clone)]
-pub struct MerkleTree<F: RichField> {
+pub struct MerkleTree<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+> {
     pub layers: Vec<Vec<HashOut<F>>>,
     pub zero: HashOut<F>,
 }
 
-impl<F: RichField> MerkleTree<F> {
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+> MerkleTree<F, D> {
     /// Constructs a new Merkle tree from the given leaves.
     pub fn new(
         leaves: &[HashOut<F>],
         zero: HashOut<F>,
     ) -> Result<Self> {
-        let layers = merkle_tree_worker::<F>(leaves, zero, true)?;
+        let layers = merkle_tree_worker::<F, D>(leaves, zero, true)?;
         Ok(Self {
             layers,
             zero,
@@ -57,7 +65,7 @@ impl<F: RichField> MerkleTree<F> {
     }
 
     /// Generates a Merkle proof for a given leaf index.
-    pub fn get_proof(&self, index: usize) -> Result<MerkleProof<F>> {
+    pub fn get_proof(&self, index: usize) -> Result<MerkleProof<F, D>> {
         let depth = self.depth();
         let nleaves = self.leaves_count();
 
@@ -89,7 +97,10 @@ impl<F: RichField> MerkleTree<F> {
 }
 
 /// Build the Merkle tree layers.
-fn merkle_tree_worker<F: RichField>(
+fn merkle_tree_worker<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+>(
     xs: &[HashOut<F>],
     zero: HashOut<F>,
     is_bottom_layer: bool,
@@ -107,7 +118,7 @@ fn merkle_tree_worker<F: RichField>(
 
     for i in 0..halfn {
         let key = if is_bottom_layer { KEY_BOTTOM_LAYER } else { KEY_NONE };
-        let h = key_compress::<F, HF>(xs[2 * i], xs[2 * i + 1], key);
+        let h = key_compress::<F, D, HF>(xs[2 * i], xs[2 * i + 1], key);
         ys.push(h);
     }
 
@@ -117,12 +128,12 @@ fn merkle_tree_worker<F: RichField>(
         } else {
             KEY_ODD
         };
-        let h = key_compress::<F, HF>(xs[n], zero, key);
+        let h = key_compress::<F, D, HF>(xs[n], zero, key);
         ys.push(h);
     }
 
     let mut layers = vec![xs.to_vec()];
-    let mut upper_layers = merkle_tree_worker::<F>(&ys, zero, false)?;
+    let mut upper_layers = merkle_tree_worker::<F, D>(&ys, zero, false)?;
     layers.append(&mut upper_layers);
 
     Ok(layers)
@@ -130,14 +141,20 @@ fn merkle_tree_worker<F: RichField>(
 
 /// Merkle proof struct, containing the index, path, and other necessary data.
 #[derive(Clone)]
-pub struct MerkleProof<F: RichField> {
+pub struct MerkleProof<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+> {
     pub index: usize,       // Index of the leaf
     pub path: Vec<HashOut<F>>, // Sibling hashes from the leaf to the root
     pub nleaves: usize,     // Total number of leaves
     pub zero: HashOut<F>,
 }
 
-impl<F: RichField> MerkleProof<F> {
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+> MerkleProof<F, D> {
     /// Reconstructs the root hash from the proof and the given leaf.
     pub fn reconstruct_root(&self, leaf: HashOut<F>) -> Result<HashOut<F>> {
         let mut m = self.nleaves;
@@ -149,14 +166,14 @@ impl<F: RichField> MerkleProof<F> {
             let odd_index = (j & 1) != 0;
             if odd_index {
                 // The index of the child is odd
-                h = key_compress::<F,HF>(*p, h, bottom_flag);
+                h = key_compress::<F, D, HF>(*p, h, bottom_flag);
             } else {
                 if j == m - 1 {
                     // Single child -> so odd node
-                    h = key_compress::<F,HF>(h, *p, bottom_flag + 2);
+                    h = key_compress::<F, D, HF>(h, *p, bottom_flag + 2);
                 } else {
                     // Even node
-                    h = key_compress::<F,HF>(h, *p, bottom_flag);
+                    h = key_compress::<F, D, HF>(h, *p, bottom_flag);
                 }
             }
             bottom_flag = KEY_NONE;
@@ -169,10 +186,11 @@ impl<F: RichField> MerkleProof<F> {
 
     /// reconstruct the root using path_bits and last_bits in similar way as the circuit
     /// this is used for testing - sanity check
-    pub fn reconstruct_root2(leaf: HashOut<F>, path_bits: Vec<bool>, last_bits:Vec<bool>,  path: Vec<HashOut<F>>) -> Result<HashOut<F>> {
+    pub fn reconstruct_root2(leaf: HashOut<F>, path_bits: Vec<bool>, last_bits:Vec<bool>,  path: Vec<HashOut<F>>, mask_bits:Vec<bool>, depth: usize) -> Result<HashOut<F>> {
         let is_last = compute_is_last(path_bits.clone(),last_bits);
 
-        let mut h = leaf;
+        let mut h = vec![];
+        h.push(leaf);
         let mut i = 0;
 
         for p in &path {
@@ -187,14 +205,23 @@ impl<F: RichField> MerkleProof<F> {
             let key = bottom + (2 * (odd as u64));
             let odd_index = path_bits[i];
             if odd_index {
-                h = key_compress::<F,HF>(*p, h, key);
+                h.push(key_compress::<F, D, HF>(*p, h[i], key));
             } else {
-                h = key_compress::<F,HF>(h, *p, key);
+                h.push(key_compress::<F,D,HF>(h[i], *p, key));
             }
             i += 1;
         }
 
-        Ok(h)
+        let mut reconstructed_root = HashOut::<F>::ZERO;
+        for k in 0..depth{
+            let diff = (mask_bits[k] as u64) - (mask_bits[k+1] as u64);
+            let mul_res: Vec<F> = h[k+1].elements.iter().map(|e| e.mul(F::from_canonical_u64(diff))).collect();
+            reconstructed_root = HashOut::<F>::from_vec(
+                mul_res.iter().zip(reconstructed_root.elements).map(|(e1,e2)| e1.add(e2)).collect()
+            );
+        }
+
+        Ok(reconstructed_root)
     }
 
     /// Verifies the proof against a given root and leaf.
@@ -229,6 +256,7 @@ mod tests {
 
     // types used in all tests
     type F = GoldilocksField;
+    const D: usize = 2;
     type H = PoseidonHash;
 
     fn compress(
@@ -236,13 +264,13 @@ mod tests {
         y: HashOut<F>,
         key: u64,
     ) -> HashOut<F> {
-        key_compress::<F,HF>(x,y,key)
+        key_compress::<F,D,HF>(x,y,key)
     }
 
     fn make_tree(
         data: &[F],
         zero: HashOut<F>,
-    ) -> Result<MerkleTree<F>> {
+    ) -> Result<MerkleTree<F,D>> {
         // Hash the data to obtain leaf hashes
         let leaves: Vec<HashOut<GoldilocksField>> = data
             .iter()
@@ -252,7 +280,7 @@ mod tests {
             })
             .collect();
 
-        MerkleTree::<F>::new(&leaves, zero)
+        MerkleTree::<F, D>::new(&leaves, zero)
     }
 
     #[test]
@@ -275,7 +303,7 @@ mod tests {
         };
 
         // Build the Merkle tree
-        let tree = MerkleTree::<F>::new(&leaves, zero)?;
+        let tree = MerkleTree::<F, D>::new(&leaves, zero)?;
 
         // Get the root
         let root = tree.root()?;
@@ -507,7 +535,7 @@ mod tests {
         };
 
         // Build the tree
-        let tree = MerkleTree::<F>::new(&leaf_hashes, zero)?;
+        let tree = MerkleTree::<F, D>::new(&leaf_hashes, zero)?;
 
         // Get the root
         let expected_root = tree.root()?;

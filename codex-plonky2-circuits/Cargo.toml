@@ -22,14 +22,3 @@ rand = "0.8.5"
 criterion = { version = "0.5.1", default-features = false }
 tynm = { version = "0.1.6", default-features = false }
 
-[[bench]]
-name = "safe_circuit"
-harness = false
-
-[[bench]]
-name = "prove_cells"
-harness = false
-
-[[bench]]
-name = "sample_cells"
-harness = false

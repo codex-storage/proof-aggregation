@@ -17,6 +17,7 @@ use plonky2::hash::hashing::PlonkyPermutation;
 use crate::circuits::params::{CircuitParams, HF};
 
 use crate::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
+use crate::circuits::sponge::hash_n_with_padding;
 use crate::circuits::utils::assign_hash_out_targets;
 
 /// circuit for sampling a slot in a dataset merkle tree
@@ -61,7 +62,7 @@ pub struct SampleTargets {
 }
 
 /// circuit input as field elements
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SampleCircuitInput<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -189,7 +190,7 @@ impl<
         let slot_last_index = builder.sub(n_cells_per_slot, one);
 
         // create the mask bits
-        // TODO: reuse this for block and slot trees
+        // TODO: re-use this for block and slot trees
         let mask_bits = builder.split_le(slot_last_index,max_depth);
 
         // last and mask bits for block tree
@@ -210,7 +211,8 @@ impl<
             // hash the cell data
             let mut hash_inputs:Vec<Target>= Vec::new();
             hash_inputs.extend_from_slice(&data_i);
-            let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
+            // let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
+            let data_i_hash = hash_n_with_padding::<F,D,HF>(builder, hash_inputs);
             // make the counter into hash digest
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
@@ -293,7 +295,8 @@ impl<
         hash_inputs.extend_from_slice(&entropy.elements);
         hash_inputs.extend_from_slice(&slot_root.elements);
         hash_inputs.extend_from_slice(&ctr.elements);
-        let hash_out = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
+        // let hash_out = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
+        let hash_out = hash_n_with_padding::<F,D,HF>(builder, hash_inputs);
         let cell_index_bits =  builder.low_bits(hash_out.elements[0], self.params.max_depth, 64);
 
         let mut masked_cell_index_bits = vec![];
