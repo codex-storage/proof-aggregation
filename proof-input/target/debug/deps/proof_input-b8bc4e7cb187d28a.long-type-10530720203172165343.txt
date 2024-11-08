@@ -1,0 +1,1 @@
+codex_plonky2_circuits::merkle_tree::merkle_safe::MerkleProof<GoldilocksField, _>
