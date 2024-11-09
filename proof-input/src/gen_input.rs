@@ -86,7 +86,9 @@ pub fn verify_witness<
             params.max_depth,
             mask_bits.clone(),
         );
+
         let cell_index = bits_le_padded_to_usize(&cell_index_bits);
+        println!("cell index ={}", cell_index);
 
         let s_res = verify_cell_proof(&witness, &params, cell_index, i);
         if s_res.unwrap() == false {
@@ -118,14 +120,18 @@ pub fn verify_cell_proof<
     let mut block_path = witness.merkle_paths[ctr].path.clone();
     let slot_path = block_path.split_off(split_point);
 
-    let mask_bits = usize_to_bits_le_padded(last_index, params.max_depth+1);
+    let mut block_mask_bits = usize_to_bits_le_padded(last_index, params.max_depth+1);
+    let mut slot_mask_bits = block_mask_bits.split_off(split_point);
+
+    block_mask_bits.push(false);
+    slot_mask_bits.push(false);
 
     let block_res = MerkleProof::<F,D>::reconstruct_root2(
         leaf_hash,
         block_path_bits.clone(),
         block_last_bits.clone(),
         block_path,
-        mask_bits.clone(),
+        block_mask_bits,
         params.bot_depth(),
     );
     let reconstructed_root = MerkleProof::<F,D>::reconstruct_root2(
@@ -133,7 +139,7 @@ pub fn verify_cell_proof<
         slot_path_bits,
         slot_last_bits,
         slot_path,
-        mask_bits.clone(),
+        slot_mask_bits,
         params.max_depth - params.bot_depth(),
     );
 
@@ -359,6 +365,7 @@ impl<
                 mask_bits.clone()
             );
             let cell_index = bits_le_padded_to_usize(&cell_index_bits);
+            println!("sample cell index = {}", cell_index);
             let mut s_proof = slot.get_proof(cell_index);
             Self::pad_proof(&mut s_proof, self.params.max_depth);
             slot_proofs.push(s_proof);

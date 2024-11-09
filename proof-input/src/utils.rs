@@ -50,13 +50,6 @@ pub(crate) fn calculate_cell_index_bits<
     masked_cell_index_bits
 }
 
-pub(crate) fn take_n_bits_from_bytes(bytes: &[u8], n: usize) -> Vec<bool> {
-    bytes.iter()
-        .flat_map(|byte| (0..8u8).map(move |i| (byte >> i) & 1 == 1))
-        .take(n)
-        .collect()
-}
-
 /// Converts a vector of bits (LSB first) into an index (usize).
 pub(crate) fn bits_le_padded_to_usize(bits: &[bool]) -> usize {
     bits.iter().enumerate().fold(0usize, |acc, (i, &bit)| {
