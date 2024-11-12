@@ -17,7 +17,7 @@ use plonky2::hash::hashing::PlonkyPermutation;
 use crate::circuits::params::{CircuitParams, HF};
 
 use crate::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
-use crate::circuits::sponge::hash_n_with_padding;
+use crate::circuits::sponge::{hash_n_no_padding, hash_n_with_padding};
 use crate::circuits::utils::assign_hash_out_targets;
 
 /// circuit for sampling a slot in a dataset merkle tree
@@ -212,7 +212,7 @@ impl<
             let mut hash_inputs:Vec<Target>= Vec::new();
             hash_inputs.extend_from_slice(&data_i);
             // let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
-            let data_i_hash = hash_n_with_padding::<F,D,HF>(builder, hash_inputs);
+            let data_i_hash = hash_n_no_padding::<F,D,HF>(builder, hash_inputs);
             // make the counter into hash digest
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();

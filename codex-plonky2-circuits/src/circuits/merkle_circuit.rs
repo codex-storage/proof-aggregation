@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::keyed_compress::key_compress_circuit;
 use crate::circuits::params::HF;
-use crate::circuits::utils::{add_assign_hash_out_target, assign_bool_targets, assign_hash_out_targets, mul_hash_out_target, usize_to_bits_le_padded};
+use crate::circuits::utils::{add_assign_hash_out_target, assign_bool_targets, assign_hash_out_targets, mul_hash_out_target};
 use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
 
 /// Merkle tree targets representing the input to the circuit

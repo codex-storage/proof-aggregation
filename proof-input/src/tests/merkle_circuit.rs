@@ -13,7 +13,7 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use serde::Serialize;
 use codex_plonky2_circuits::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
 use codex_plonky2_circuits::circuits::utils::{assign_bool_targets, assign_hash_out_targets};
-use crate::utils::usize_to_bits_le_padded;
+use crate::utils::usize_to_bits_le;
 
 use codex_plonky2_circuits::merkle_tree::merkle_safe::MerkleTree;
 
@@ -117,11 +117,10 @@ mod tests {
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2_field::goldilocks_field::GoldilocksField;
-    // use crate::circuits::utils::usize_to_bits_le_padded;
     // use crate::merkle_tree::merkle_safe::MerkleTree;
 
     // NOTE: for now these tests don't check the reconstructed root is equal to expected_root
-// will be fixed later, but for that test check the prove_single_cell tests
+    // will be fixed later, but for that test check the other tests in this crate
     #[test]
     fn test_build_circuit() -> anyhow::Result<()> {
         // circuit params
@@ -176,10 +175,10 @@ mod tests {
             builder.connect(expected_root.elements[i], reconstructed_root_target.elements[i]);
         }
 
-        let path_bits = usize_to_bits_le_padded(leaf_index, max_depth);
+        let path_bits = usize_to_bits_le(leaf_index, max_depth);
         let last_index = (nleaves - 1) as usize;
-        let last_bits = usize_to_bits_le_padded(last_index, max_depth);
-        let mask_bits = usize_to_bits_le_padded(last_index, max_depth+1);
+        let last_bits = usize_to_bits_le(last_index, max_depth);
+        let mask_bits = usize_to_bits_le(last_index, max_depth+1);
 
         // circuit input
         let circuit_input = MerkleTreeCircuitInput::<F, D>{
@@ -265,10 +264,10 @@ mod tests {
 
             let mut pw = PartialWitness::new();
 
-            let path_bits = usize_to_bits_le_padded(leaf_index, max_depth);
+            let path_bits = usize_to_bits_le(leaf_index, max_depth);
             let last_index = (nleaves - 1) as usize;
-            let last_bits = usize_to_bits_le_padded(last_index, max_depth);
-            let mask_bits = usize_to_bits_le_padded(last_index, max_depth+1);
+            let last_bits = usize_to_bits_le(last_index, max_depth);
+            let mask_bits = usize_to_bits_le(last_index, max_depth+1);
 
             // circuit input
             let circuit_input = MerkleTreeCircuitInput::<F, D>{

@@ -9,20 +9,41 @@ use codex_plonky2_circuits::circuits::params::HF;
 use anyhow::Result;
 use plonky2::hash::hashing::PlonkyPermutation;
 use crate::sponge::hash_n_with_padding;
+
 // --------- helper functions ---------
 
-/// Converts an index to a vector of bits (LSB first) with padding.
-pub(crate) fn usize_to_bits_le_padded(index: usize, bit_length: usize) -> Vec<bool> {
+/// Converts an index to a vector of bits (LSB first) no padding.
+pub(crate) fn usize_to_bits_le(index: usize, bit_length: usize) -> Vec<bool> {
+    // Assert that the index can fit within the given bit length.
+    assert!(
+        index < (1 << bit_length),
+        "Index ({}) does not fit in {} bits",
+        index,
+        bit_length
+    );
+
     let mut bits = Vec::with_capacity(bit_length);
     for i in 0..bit_length {
         bits.push(((index >> i) & 1) == 1);
     }
-    // If index requires fewer bits, pad with `false`
-    while bits.len() < bit_length {
-        bits.push(false);
-    }
+
+    // No padding
     bits
 }
+
+/// returns the first bit_length bits of index
+pub(crate) fn low_bits(index: usize, bit_length: usize) -> Vec<bool> {
+
+    let mut bits = Vec::with_capacity(bit_length);
+
+    for i in 0..bit_length {
+        // get the i-th bit and push its bool value
+        bits.push(((index >> i) & 1) == 1);
+    }
+
+    bits
+}
+
 /// calculate the sampled cell index from entropy, slot root, and counter
 /// this is the non-circuit version for testing
 pub(crate) fn calculate_cell_index_bits<
@@ -39,7 +60,7 @@ pub(crate) fn calculate_cell_index_bits<
     let hash_output = hash_n_with_padding::<F,D,HF>(&hash_inputs);
     let cell_index_bytes = hash_output.elements[0].to_canonical_u64();
 
-    let cell_index_bits = usize_to_bits_le_padded(cell_index_bytes as usize, depth);
+    let cell_index_bits = low_bits(cell_index_bytes as usize, depth);
 
     let mut masked_cell_index_bits = vec![];
 

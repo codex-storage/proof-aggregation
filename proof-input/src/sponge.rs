@@ -46,7 +46,8 @@ pub fn hash_n_to_m_with_padding<
             if let Some(&input) = input_iter.next() {
                 chunk.push(input);
             } else {
-                chunk.push(zero); // Pad with zeros if necessary (should not happen here)
+                // should not happen here
+                panic!("Insufficient input elements for chunk; expected more elements.");
             }
         }
         // Add the chunk to the state
@@ -83,6 +84,75 @@ pub fn hash_n_to_m_with_padding<
     }
     // Apply permutation
     perm.permute();
+
+    // Squeeze outputs until we have the desired number
+    let mut outputs = Vec::with_capacity(num_outputs);
+    loop {
+        for &item in perm.squeeze() {
+            outputs.push(item);
+            if outputs.len() == num_outputs {
+                return outputs;
+            }
+        }
+        perm.permute();
+    }
+}
+
+/// sponge function for bytes with no padding
+/// expects the input to be divisible by rate
+/// note: rate is fixed at 8 for now
+/// used here for testing / sanity check
+pub fn hash_bytes_no_padding<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    H: Hasher<F>
+>(
+    inputs: &[F],
+) -> HashOut<F>{
+    HashOut::<F>::from_vec(hash_bytes_to_m_no_padding::<F, D, H::Permutation>(inputs, NUM_HASH_OUT_ELTS))
+}
+
+pub fn hash_bytes_to_m_no_padding<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    P: PlonkyPermutation<F>
+>(
+    inputs: &[F],
+    num_outputs: usize,
+) -> Vec<F> {
+    let rate = P::RATE;
+    let width = P::WIDTH; // rate + capacity
+    let zero = F::ZERO;
+    let one = F::ONE;
+    let mut perm = P::new(core::iter::repeat(zero).take(width));
+
+    // Set the domain separator at index 8
+    let domsep_value = F::from_canonical_u64(rate as u64 + 256 * 12 + 65536 * 8);
+    perm.set_elt(domsep_value, 8);
+
+    let n = inputs.len();
+    assert_eq!(n % rate, 0, "Input length ({}) must be divisible by rate ({})", n, rate);
+    let num_chunks = n / rate; // Calculate number of chunks
+    let mut input_iter = inputs.iter();
+
+    // Process all chunks
+    for _ in 0..num_chunks {
+        let mut chunk = Vec::with_capacity(rate);
+        for _ in 0..rate {
+            if let Some(&input) = input_iter.next() {
+                chunk.push(input);
+            } else {
+                // should not happen here
+                panic!("Insufficient input elements for chunk; expected more elements.");
+            }
+        }
+        // Add the chunk to the state
+        for j in 0..rate {
+            perm.set_elt(perm.as_ref()[j] + chunk[j],j);
+        }
+        // Apply permutation
+        perm.permute();
+    }
 
     // Squeeze outputs until we have the desired number
     let mut outputs = Vec::with_capacity(num_outputs);

@@ -50,7 +50,8 @@ pub fn hash_n_to_m_with_padding<
             if let Some(&input) = input_iter.next() {
                 chunk.push(input);
             } else {
-                chunk.push(zero); // Should not happen, but pad zeros if necessary
+                // should not happen here
+                panic!("Insufficient input elements for chunk; expected more elements.");
             }
         }
         // Add the chunk to the state
@@ -89,6 +90,76 @@ pub fn hash_n_to_m_with_padding<
     // Apply permutation
     state = builder.permute::<H>(state);
 
+    // Squeeze until we have the desired number of outputs
+    let mut outputs = Vec::with_capacity(num_outputs);
+    loop {
+        for &s in state.squeeze() {
+            outputs.push(s);
+            if outputs.len() == num_outputs {
+                return outputs;
+            }
+        }
+        state = builder.permute::<H>(state);
+    }
+}
+
+/// hash n targets (field elements) into hash digest / HashOutTarget (4 Goldilocks field elements)
+/// this function uses doesn't pad and expects input to be divisible by rate
+/// rate is fixed at 8 for now.
+pub fn hash_n_no_padding<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    H: AlgebraicHasher<F>
+>(
+    builder: &mut CircuitBuilder<F, D>,
+    inputs: Vec<Target>,
+) -> HashOutTarget {
+    HashOutTarget::from_vec( hash_n_to_m_no_padding::<F, D, H>(builder, inputs, NUM_HASH_OUT_ELTS))
+}
+
+pub fn hash_n_to_m_no_padding<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    H: AlgebraicHasher<F>
+>(
+    builder: &mut CircuitBuilder<F, D>,
+    inputs: Vec<Target>,
+    num_outputs: usize,
+) -> Vec<Target> {
+    let rate = H::AlgebraicPermutation::RATE;
+    let width = H::AlgebraicPermutation::WIDTH; // rate + capacity
+    let zero = builder.zero();
+    let one = builder.one();
+    let mut state = H::AlgebraicPermutation::new(core::iter::repeat(zero).take(width));
+
+    // Set the domain separator at index 8
+    let dom_sep_value = rate as u64 + 256 * 12 + 65536 * 8;
+    let dom_sep = builder.constant(F::from_canonical_u64(dom_sep_value));
+    state.set_elt(dom_sep, 8);
+
+    let n = inputs.len();
+    assert_eq!(n % rate, 0, "Input length ({}) must be divisible by rate ({})", n, rate);
+    let num_chunks = n / rate; // 10* padding
+    let mut input_iter = inputs.iter();
+
+    // Process all chunks
+    for _ in 0..num_chunks {
+        let mut chunk = Vec::with_capacity(rate);
+        for _ in 0..rate {
+            if let Some(&input) = input_iter.next() {
+                chunk.push(input);
+            } else {
+                // should not happen here
+                panic!("Insufficient input elements for chunk; expected more elements.");
+            }
+        }
+        // Add the chunk to the state
+        for j in 0..rate {
+            state.set_elt(builder.add(state.as_ref()[j], chunk[j]), j);
+        }
+        // Apply permutation
+        state = builder.permute::<H>(state);
+    }
     // Squeeze until we have the desired number of outputs
     let mut outputs = Vec::with_capacity(num_outputs);
     loop {
