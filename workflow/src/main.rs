@@ -5,7 +5,7 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use anyhow::Result;
 use std::time::Instant;
 
-use proof_input::json::import_witness_from_json;
+use proof_input::json::import_circ_input_from_json;
 use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
 use proof_input::params::Params;
@@ -16,20 +16,14 @@ fn main() -> Result<()> {
     let params = Params::from_env()?;
 
     // Read the witness from input.json
-    let witness: SampleCircuitInput<F, D> = import_witness_from_json("input.json")?;
+    let witness: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
     println!("Witness imported from input.json");
 
     // Create the circuit
     let config = CircuitConfig::standard_recursion_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
-    let circuit_params = CircuitParams {
-        max_depth: params.max_depth,
-        max_log2_n_slots: params.dataset_depth(),
-        block_tree_depth: params.bot_depth(),
-        n_field_elems_per_cell: params.n_field_elems_per_cell(),
-        n_samples: params.n_samples,
-    };
+    let circuit_params = params.circuit_params;
     let circ = SampleCircuit::new(circuit_params);
     let mut targets = circ.sample_slot_circuit(&mut builder);
 

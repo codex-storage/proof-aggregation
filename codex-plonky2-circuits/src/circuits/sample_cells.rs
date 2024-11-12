@@ -18,7 +18,7 @@ use crate::circuits::params::{CircuitParams, HF};
 
 use crate::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
 use crate::circuits::sponge::{hash_n_no_padding, hash_n_with_padding};
-use crate::circuits::utils::assign_hash_out_targets;
+use crate::circuits::utils::{assign_hash_out_targets, ceiling_log2};
 
 /// circuit for sampling a slot in a dataset merkle tree
 #[derive(Clone)]
@@ -144,12 +144,9 @@ impl<
         // create virtual target for n_slots_per_dataset
         let n_slots_per_dataset = builder.add_virtual_target();
 
-        // dataset last bits (binary decomposition of last_index = nleaves - 1)
-        let dataset_last_index = builder.sub(n_slots_per_dataset, one);
-        let d_last_bits = builder.split_le(dataset_last_index,max_log2_n_slots);
-
-        // dataset mask bits
-        let mut d_mask_bits = builder.split_le(dataset_last_index,max_log2_n_slots+1);
+        // dataset last bits and mask bits
+        let (d_last_bits, d_mask_bits) =
+            ceiling_log2(builder, n_slots_per_dataset, max_log2_n_slots);
 
         // dataset Merkle path (sibling hashes from leaf to root)
         let d_merkle_path = MerkleProofTarget {

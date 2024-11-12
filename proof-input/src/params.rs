@@ -24,7 +24,7 @@ const DEFAULT_N_SAMPLES: usize = 5; // number of samples to prove
 const DEFAULT_ENTROPY: usize = 1234567; // external randomness
 const DEFAULT_SEED: usize = 12345; // seed for creating fake data TODO: not used now
 
-const DEFAULT_N_SLOTS: usize = 16; // number of slots in the dataset
+const DEFAULT_N_SLOTS: usize = 11; // number of slots in the dataset
 const DEFAULT_SLOT_INDEX: usize = 3; // the index of the slot to be sampled
 const DEFAULT_N_CELLS: usize = 512; // number of cells in each slot
 

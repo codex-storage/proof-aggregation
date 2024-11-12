@@ -12,6 +12,33 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 
 // --------- helper functions ---------
 
+/// computes the `last_index` (the binary decomposition of `inp-1`) and the `mask_bits`
+pub fn ceiling_log2<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+>(
+    builder: &mut CircuitBuilder::<F, D>,
+    inp: Target,
+    n: usize,
+)-> (Vec<BoolTarget>, Vec<BoolTarget>){
+    let one = builder.one();
+    let zero = builder.zero();
+    let last_index = builder.sub(inp, one.clone());
+    let last_bits = builder.split_le(last_index,n);
+
+    let mut aux: Vec<BoolTarget> = vec![BoolTarget::new_unsafe(zero.clone()); n + 1];
+    aux[n] = BoolTarget::new_unsafe(one.clone());
+    let mut mask: Vec<BoolTarget> = vec![BoolTarget::new_unsafe(zero.clone()); n + 1];
+    for i in (0..n).rev(){
+        let diff = (builder.sub(one.clone(), last_bits[i].target));
+        let aux_i = builder.mul( aux[i+1].target, diff);
+        aux[i] = BoolTarget::new_unsafe(aux_i);
+        mask[i] = BoolTarget::new_unsafe(builder.sub(one.clone(), aux[i].target));
+    }
+
+    (last_bits, mask)
+}
+
 /// assign a vec of bool values to a vec of BoolTargets
 pub fn assign_bool_targets<
     F: RichField + Extendable<D> + Poseidon2,
