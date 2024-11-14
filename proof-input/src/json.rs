@@ -326,7 +326,7 @@ mod tests {
         assert_eq!(original_circ_input, imported_circ_input, "circuit input are not equal");
 
         // cleanup: Remove the generated JSON file
-        fs::remove_file("input.json")?;
+        // fs::remove_file("input.json")?;
 
         println!("Test passed: Original and imported circuit input are equal.");
 
@@ -383,7 +383,7 @@ mod tests {
     // reads the json input and verify (non-circuit)
     // NOTE: expects that the json input proof uses the default params
     #[test]
-    fn test_read_json_and_verify() -> anyhow::Result<()> {
+    fn test_read_json_and_verify() -> Result<()> {
         let params = TestParams::default();
 
         // Import the circuit input from JSON

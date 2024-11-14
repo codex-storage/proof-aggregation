@@ -26,4 +26,4 @@ writeup coming soon...
 see [`workflow`](../workflow) for how to use the circuits and run them. 
 
 ## Benchmarks
-see [`BENCHMARKS.md`](../proof-input/BENCHMARKS.md)
+see [`BENCHMARKS.md`](../workflow/BENCHMARKS.md)

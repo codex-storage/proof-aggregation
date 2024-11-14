@@ -20,4 +20,4 @@ the [`plonky2 codex proof circuits`](../codex-plonky2-circuits). Currently only 
 see [`workflow`](../workflow) for how to generate proof input.
 
 ## Benchmarks
-see [`BENCHMARKS.md`](../proof-input/BENCHMARKS.md)
+see [`BENCHMARKS.md`](../workflow/BENCHMARKS.md)

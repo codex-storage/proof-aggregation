@@ -13,7 +13,7 @@ use crate::sponge::hash_n_with_padding;
 // --------- helper functions ---------
 
 /// Converts an index to a vector of bits (LSB first) no padding.
-pub(crate) fn usize_to_bits_le(index: usize, bit_length: usize) -> Vec<bool> {
+pub fn usize_to_bits_le(index: usize, bit_length: usize) -> Vec<bool> {
     // Assert that the index can fit within the given bit length.
     assert!(
         index < (1 << bit_length),
@@ -32,7 +32,7 @@ pub(crate) fn usize_to_bits_le(index: usize, bit_length: usize) -> Vec<bool> {
 }
 
 /// returns the first bit_length bits of index
-pub(crate) fn low_bits(index: usize, bit_length: usize) -> Vec<bool> {
+pub fn low_bits(index: usize, bit_length: usize) -> Vec<bool> {
 
     let mut bits = Vec::with_capacity(bit_length);
 
@@ -46,7 +46,7 @@ pub(crate) fn low_bits(index: usize, bit_length: usize) -> Vec<bool> {
 
 /// calculate the sampled cell index from entropy, slot root, and counter
 /// this is the non-circuit version for testing
-pub(crate) fn calculate_cell_index_bits<
+pub fn calculate_cell_index_bits<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize
 >(entropy: &Vec<F>, slot_root: HashOut<F>, ctr: usize, depth: usize, mask_bits: Vec<bool>) -> Vec<bool> {
@@ -72,7 +72,7 @@ pub(crate) fn calculate_cell_index_bits<
 }
 
 /// Converts a vector of bits (LSB first) into an index (usize).
-pub(crate) fn bits_le_padded_to_usize(bits: &[bool]) -> usize {
+pub fn bits_le_padded_to_usize(bits: &[bool]) -> usize {
     bits.iter().enumerate().fold(0usize, |acc, (i, &bit)| {
         if bit {
             acc | (1 << i)

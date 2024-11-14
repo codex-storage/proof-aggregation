@@ -10,4 +10,12 @@ Repository organization
 
 - [`codex-plonky2-circuits`](./codex-plonky2-circuits) contains the codex proof circuits tailored specifically for plonky2. These circuits have the functionality as those in [**here**](https://github.com/codex-storage/codex-storage-proofs-circuits)
 
+- [`proof-input`](./proof-input) contains the lib code to generate proof input for the circuit from fake dataset.
+
+- [`workflow`](./workflow) contains the scripts and example code to generate input, run the circuits, generate a proof, and verify the proof.
+
+Documentation
+-----------------
+To be added soon.
+
 **WARNING**: This repository contains work-in-progress prototypes, and has not received careful code review. It is NOT ready for production use.

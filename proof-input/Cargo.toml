@@ -14,15 +14,3 @@ plonky2    = { version = "0.2.2" }
 plonky2_field = { version = "0.2.2", default-features = false }
 plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
 codex-plonky2-circuits = { path = "../codex-plonky2-circuits" }
-
-[[bench]]
-name = "safe_circuit"
-harness = false
-
-[[bench]]
-name = "prove_cells"
-harness = false
-
-[[bench]]
-name = "sample_cells"
-harness = false
