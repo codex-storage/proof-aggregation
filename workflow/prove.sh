@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Source the parameters from params.sh
-source ./params.sh
+source ./circ_params.sh
 
 # Build
 cargo build --release
 
 # Run the Rust executable
-cargo run prove_and_verify
+cargo run --bin prove

@@ -363,7 +363,6 @@ impl<
                 mask_bits.clone()
             );
             let cell_index = bits_le_padded_to_usize(&cell_index_bits);
-            println!("sample cell index = {}", cell_index);
             let mut s_proof = slot.get_proof(cell_index);
             Self::pad_proof(&mut s_proof, self.params.max_depth);
             slot_proofs.push(s_proof);

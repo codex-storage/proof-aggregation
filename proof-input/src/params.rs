@@ -5,6 +5,7 @@ use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
 use std::env;
 use anyhow::{Result, Context};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
+use plonky2_field::goldilocks_field::GoldilocksField;
 use plonky2_poseidon2::config::Poseidon2GoldilocksConfig;
 
 // test types
@@ -132,14 +133,12 @@ impl TestParams {
 
     // DATASET_DEPTH
     pub fn dataset_max_depth(&self) -> usize {
-        // self.max_slots.trailing_zeros() as usize
         ceiling_log2(self.max_slots)
     }
 
     // DATASET_DEPTH for test
     pub fn dataset_depth_test(&self) -> usize {
         ceiling_log2(self.n_slots)
-        // self.n_slots.trailing_zeros() as usize
     }
 
 }

@@ -18,4 +18,16 @@ proof-input = { path = "../proof-input" }
 
 [[bin]]
 name = "prove_and_verify"
-path = "src/main.rs"
+path = "src/bin/prove_and_verify.rs"
+
+[[bin]]
+name = "gen_input"
+path = "src/bin/gen_input.rs"
+
+[[bin]]
+name = "build_circ"
+path = "src/bin/build_circ.rs"
+
+[[bin]]
+name = "prove"
+path = "src/bin/prove.rs"
