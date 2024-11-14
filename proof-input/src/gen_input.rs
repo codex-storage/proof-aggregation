@@ -5,7 +5,7 @@ use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::params::{CircuitParams, HF};
 use crate::params::TestParams;
-use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le};
+use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use codex_plonky2_circuits::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
 use codex_plonky2_circuits::circuits::sample_cells::{Cell, MerklePath, SampleCircuit, SampleCircuitInput};
 use plonky2::iop::witness::PartialWitness;
@@ -60,9 +60,7 @@ pub fn verify_circuit_input<
     // check dataset level proof
     let slot_proof = circ_input.slot_proof.clone();
     let dataset_path_bits = usize_to_bits_le(slot_index as usize, params.dataset_max_depth());
-    let last_index = params.n_slots - 1;
-    let dataset_last_bits = usize_to_bits_le(last_index, params.dataset_max_depth());
-    let dataset_mask_bits = usize_to_bits_le(last_index, params.dataset_max_depth()+1);
+    let (dataset_last_bits, dataset_mask_bits) = ceiling_log2(params.n_slots, params.dataset_max_depth());
     let reconstructed_slot_root = MerkleProof::<F,D>::reconstruct_root2(
         slot_root,
         dataset_path_bits,
@@ -75,7 +73,6 @@ pub fn verify_circuit_input<
     assert_eq!(reconstructed_slot_root, circ_input.dataset_root.clone());
 
     // check each sampled cell
-
     // get the index for cell from H(slot_root|counter|entropy)
     let mask_bits = usize_to_bits_le(params.n_cells -1, params.max_depth);
     for i in 0..params.n_samples {

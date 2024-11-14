@@ -82,6 +82,31 @@ pub fn bits_le_padded_to_usize(bits: &[bool]) -> usize {
     })
 }
 
+/// computes the `last_index` (the binary decomposition of `inp-1`) and the `mask_bits`
+pub fn ceiling_log2(
+    inp: usize,
+    n: usize,
+) -> (Vec<bool>, Vec<bool>) {
+    // Handle the case when inp is 0
+    let last_index = if inp == 0 { panic!("input to ceiling_log2 is 0") } else { inp - 1 };
+    let last_bits = usize_to_bits_le(last_index, n);
+
+    // Initialize aux, all false
+    let mut aux = vec![false; n+1];
+    aux[n] = true; // aux[n] = 1
+
+    // Initialize mask vector
+    let mut mask = vec![false; n+1];
+
+    // Compute aux and mask bits
+    for i in (0..n).rev() {
+        aux[i] = aux[i + 1] && !last_bits[i];
+        mask[i] = !aux[i];
+    }
+
+    (last_bits, mask)
+}
+
 /// prove given the circuit data and partial witness
 pub fn prove<
     F: RichField + Extendable<D> + Poseidon2,
