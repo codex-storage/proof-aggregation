@@ -14,10 +14,10 @@ use proof_input::params::{D, C, F, Params, TestParams};
 fn bench_prove_verify(c: &mut Criterion) {
     // get default parameters
     let mut test_params = TestParams::default();
-    test_params.n_samples = 10;
+    test_params.n_samples = 100;
 
     let mut circuit_params = CircuitParams::default();
-    circuit_params.n_samples = 10;
+    circuit_params.n_samples = 100;
 
     // gen the circuit input
     let circ_input = gen_testing_circuit_input::<F,D>(&test_params);
@@ -56,6 +56,15 @@ fn bench_prove_verify(c: &mut Criterion) {
     let build_duration = build_start.elapsed();
     println!("Build time: {:?}", build_duration);
     println!("Circuit size (degree bits): {:?}", data.common.degree_bits());
+
+    let num_constr: usize = data.common
+        .gates
+        .iter()
+        .map(|gate| gate.0.num_constraints())
+        .sum();
+
+    println!("Number of constraints: {}", num_constr);
+    println!("Number of gates used: {}", data.common.gates.len());
 
     // Benchmark the Proving Phase
     group.bench_function("Prove Circuit", |b| {
