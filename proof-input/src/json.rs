@@ -1,7 +1,9 @@
 use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
+use std::{fs, io};
 use std::io::{BufReader, Write};
+use std::path::Path;
 use crate::gen_input::{DatasetTree, gen_testing_circuit_input};
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::plonk::config::{GenericConfig, Hasher};
@@ -271,17 +273,27 @@ pub fn import_circ_input_from_json<F: RichField + Extendable<D> + Poseidon2, con
     Ok(circ_input)
 }
 
+/// Writes the provided bytes to the specified file path using `std::fs::write`.
+pub fn write_bytes_to_file<P: AsRef<Path>>(data: Vec<u8>, path: P) -> io::Result<()> {
+    fs::write(path, data)
+}
+
+/// Reads the contents of the specified file and returns them as a vector of bytes using `std::fs::read`.
+pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
+    fs::read(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::params::{C, D, F};
-    use std::fs;
     use std::time::Instant;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use plonky2::plonk::circuit_data::CircuitConfig;
+    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
+    use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
     use crate::gen_input::verify_circuit_input;
 
     // Test to generate the JSON file
@@ -342,13 +354,8 @@ mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let circuit_params = CircuitParams {
-            max_depth: params.max_depth,
-            max_log2_n_slots: params.dataset_max_depth(),
-            block_tree_depth: params.bot_depth(),
-            n_field_elems_per_cell: params.n_field_elems_per_cell(),
-            n_samples: params.n_samples,
-        };
+        let circuit_params = CircuitParams::default();
+
         let circ = SampleCircuit::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit(&mut builder);
 
@@ -394,6 +401,58 @@ mod tests {
         let ver = verify_circuit_input(imported_circ_input, &params);
         assert!(
             ver,
+            "Merkle proof verification failed"
+        );
+
+        Ok(())
+    }
+
+    // test out custom default gate and generator serializers to export/import circuit data
+    #[test]
+    fn test_circuit_data_serializer() -> anyhow::Result<()> {
+        let params = TestParams::default();
+
+        // Create the circuit
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let circuit_params = CircuitParams::default();
+        let circ = SampleCircuit::new(circuit_params.clone());
+        let mut targets = circ.sample_slot_circuit(&mut builder);
+
+        // Create a PartialWitness and assign
+        let mut pw = PartialWitness::new();
+
+        // gen circ input
+        let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&params);
+        circ.sample_slot_assign_witness(&mut pw, &mut targets, imported_circ_input);
+
+        // Build the circuit
+        let data = builder.build::<C>();
+        println!("circuit size = {:?}", data.common.degree_bits());
+
+        let gate_serializer = DefaultGateSerializer;
+        let generator_serializer =DefaultGeneratorSerializer::<C, D>::default();
+        let data_bytes = data.to_bytes(&gate_serializer, &generator_serializer).unwrap();
+
+        let file_path = "circ_data.bin";
+        // Write data to the file
+        write_bytes_to_file(data_bytes.clone(), file_path).unwrap();
+        println!("Data written to {}", file_path);
+
+        // Read data back from the file
+        let read_data = read_bytes_from_file(file_path).unwrap();
+        let data = CircuitData::<F,C,D>::from_bytes(&read_data, &gate_serializer, &generator_serializer).unwrap();
+
+        // Prove the circuit with the assigned witness
+        let start_time = Instant::now();
+        let proof_with_pis = data.prove(pw)?;
+        println!("prove_time = {:?}", start_time.elapsed());
+
+        // Verify the proof
+        let verifier_data = data.verifier_data();
+        assert!(
+            verifier_data.verify(proof_with_pis).is_ok(),
             "Merkle proof verification failed"
         );
 

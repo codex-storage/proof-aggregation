@@ -395,7 +395,7 @@ mod tests {
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
-    use codex_plonky2_circuits::circuits::sample_cells::{MerklePath, SampleCircuit, SampleCircuitInput};
+    use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
     use crate::params::{C, D, F};
 
     // Test sample cells (non-circuit)
@@ -410,20 +410,16 @@ mod tests {
     #[test]
     fn test_proof_in_circuit() -> anyhow::Result<()> {
         // get input
-        let params = TestParams::default();
+        let mut params = TestParams::default();
+        params.n_samples = 10;
         let circ_input = gen_testing_circuit_input::<F,D>(&params);
 
         // Create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let circuit_params = CircuitParams {
-            max_depth: params.max_depth,
-            max_log2_n_slots: params.dataset_max_depth(),
-            block_tree_depth: params.bot_depth(),
-            n_field_elems_per_cell: params.n_field_elems_per_cell(),
-            n_samples: params.n_samples,
-        };
+        let mut circuit_params = CircuitParams::default();
+        circuit_params.n_samples = 10;
 
         // build the circuit
         let circ = SampleCircuit::new(circuit_params.clone());

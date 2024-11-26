@@ -5,19 +5,22 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
 use plonky2::plonk::config::GenericConfig;
 
-use proof_input::json::import_circ_input_from_json;
-use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
+use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use codex_plonky2_circuits::circuits::params::CircuitParams;
-use proof_input::params::{D, C, F, Params};
+use proof_input::gen_input::gen_testing_circuit_input;
+use proof_input::params::{D, C, F, Params, TestParams};
 
 /// Benchmark for building, proving, and verifying the Plonky2 circuit.
 fn bench_prove_verify(c: &mut Criterion) {
     // get default parameters
-    let circuit_params = CircuitParams::default();
+    let mut test_params = TestParams::default();
+    test_params.n_samples = 10;
 
-    // Import the circuit input from a JSON file
-    let circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json").expect("Failed to import circuit input from JSON");
-    println!("Witness imported from input.json");
+    let mut circuit_params = CircuitParams::default();
+    circuit_params.n_samples = 10;
+
+    // gen the circuit input
+    let circ_input = gen_testing_circuit_input::<F,D>(&test_params);
 
     // Create the circuit configuration
     let config = CircuitConfig::standard_recursion_config();
@@ -54,16 +57,11 @@ fn bench_prove_verify(c: &mut Criterion) {
     println!("Build time: {:?}", build_duration);
     println!("Circuit size (degree bits): {:?}", data.common.degree_bits());
 
-    // Benchmark the Proving Phase
-    group.bench_function("Prove Circuit", |b| {
-        b.iter(|| {
-            let local_pw = pw.clone();
-            data.prove(local_pw).expect("Failed to prove circuit")
-        })
-    });
-
     // Generate the proof once for verification benchmarking
+    let prove_start = std::time::Instant::now();
     let proof_with_pis = data.prove(pw.clone()).expect("Failed to prove circuit");
+    let prove_duration = prove_start.elapsed();
+    println!("prove time: {:?}", prove_duration);
     let verifier_data = data.verifier_data();
 
     println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());

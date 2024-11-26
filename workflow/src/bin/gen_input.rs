@@ -15,6 +15,7 @@ fn main() -> Result<()> {
     // export circuit parameters to json file
     let filename= "input.json";
     export_circ_input_to_json(circ_input, filename)?;
+    println!("proof input written to {}", filename);
 
     Ok(())
 }
