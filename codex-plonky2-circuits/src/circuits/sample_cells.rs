@@ -67,7 +67,7 @@ pub struct SampleCircuitInput<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 >{
-    pub entropy: Vec<F>,
+    pub entropy: HashOut<F>,
     pub dataset_root: HashOut<F>,
     pub slot_index: F,
 
@@ -342,7 +342,7 @@ impl<
         pw.set_hash_target(targets.slot_root, witnesses.slot_root);
 
         // assign entropy
-        assign_hash_out_targets(pw, &targets.entropy.elements, &witnesses.entropy);
+        assign_hash_out_targets(pw, &targets.entropy.elements, &witnesses.entropy.elements);
 
         // do the sample N times
         for i in 0..n_samples {

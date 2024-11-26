@@ -76,6 +76,7 @@ impl<
                 .collect(),
             entropy: circ_input
                 .entropy
+                .elements
                 .iter()
                 .map(|e| e.to_canonical_u64().to_string())
                 .collect(),
@@ -125,7 +126,7 @@ impl<> SerializableCircuitInput {
         const D: usize
     >(&self) -> Result<SampleCircuitInput<F, D>> {
         // Convert entropy
-        let entropy = self
+        let entropy_elements = self
             .entropy
             .iter()
             .map(|s| -> Result<F, Error> {
@@ -133,6 +134,11 @@ impl<> SerializableCircuitInput {
                 Ok(F::from_canonical_u64(n))
             })
             .collect::<Result<Vec<F>, Error>>()?;
+        let entropy = HashOut {
+            elements: entropy_elements
+                .try_into()
+                .map_err(|_| anyhow!("Invalid entropy length"))?,
+        };
 
         // Convert dataset_root
         let dataset_root_elements = self

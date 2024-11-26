@@ -37,7 +37,7 @@ pub fn gen_testing_circuit_input<
     }
 
     SampleCircuitInput::<F, D> {
-        entropy: proof.entropy.elements.clone().to_vec(),
+        entropy: proof.entropy,
         dataset_root: dataset_t.tree.root().unwrap(),
         slot_index: proof.slot_index.clone(),
         slot_root,
@@ -77,7 +77,7 @@ pub fn verify_circuit_input<
     let mask_bits = usize_to_bits_le(params.n_cells -1, params.max_depth);
     for i in 0..params.n_samples {
         let cell_index_bits = calculate_cell_index_bits(
-            &circ_input.entropy,
+            &circ_input.entropy.elements.to_vec(),
             slot_root,
             i + 1,
             params.max_depth,
