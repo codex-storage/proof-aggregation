@@ -2,7 +2,7 @@ use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::{fs, io};
-use std::io::{BufReader, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
 use crate::gen_input::{DatasetTree, gen_testing_circuit_input};
 use plonky2::hash::hash_types::{HashOut, RichField};
@@ -11,6 +11,8 @@ use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::sample_cells::{Cell, MerklePath, SampleCircuitInput};
+use plonky2::plonk::proof::CompressedProofWithPublicInputs;
+use serde_json::to_writer_pretty;
 use crate::params::TestParams;
 
 /// export circuit input to json file
@@ -27,6 +29,25 @@ pub fn export_circ_input_to_json<
     // Write to file
     let mut file = File::create(filename)?;
     file.write_all(json_data.as_bytes())?;
+    Ok(())
+}
+
+// Function to export proof with public input to json file
+fn export_proof_with_pi_to_json<F, C, const D: usize>(
+    instance: &CompressedProofWithPublicInputs<F, C, D>,
+    path: &str,
+) -> io::Result<()>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + Serialize,
+{
+    // Create or overwrite the file at the given path
+    let file = File::create(path)?;
+    let writer = BufWriter::new(file);
+
+    // Serialize the struct to JSON and write it to the file
+    to_writer_pretty(writer, instance)?;
+
     Ok(())
 }
 
@@ -454,6 +475,51 @@ mod tests {
         let start_time = Instant::now();
         let proof_with_pis = data.prove(pw)?;
         println!("prove_time = {:?}", start_time.elapsed());
+
+        // Verify the proof
+        let verifier_data = data.verifier_data();
+        assert!(
+            verifier_data.verify(proof_with_pis).is_ok(),
+            "Merkle proof verification failed"
+        );
+
+        Ok(())
+    }
+
+    // test proof with public input serialization
+    #[test]
+    fn test_proof_with_pi_serializer() -> anyhow::Result<()> {
+        let params = TestParams::default();
+
+        // Create the circuit
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let circuit_params = CircuitParams::default();
+        let circ = SampleCircuit::new(circuit_params.clone());
+        let mut targets = circ.sample_slot_circuit(&mut builder);
+
+        // Create a PartialWitness and assign
+        let mut pw = PartialWitness::new();
+
+        // gen circ input
+        let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&params);
+        circ.sample_slot_assign_witness(&mut pw, &mut targets, imported_circ_input);
+
+        // Build the circuit
+        let data = builder.build::<C>();
+        println!("circuit size = {:?}", data.common.degree_bits());
+
+        // Prove the circuit with the assigned witness
+        let start_time = Instant::now();
+        let proof_with_pis = data.prove(pw)?;
+        println!("prove_time = {:?}", start_time.elapsed());
+        println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());
+
+        let compressed_proof_with_pi = data.compress(proof_with_pis.clone())?;
+        let filename = "proof_with_pi.json";
+        export_proof_with_pi_to_json(&compressed_proof_with_pi,filename)?;
+        println!("Proof size: {} bytes", compressed_proof_with_pi.to_bytes().len());
 
         // Verify the proof
         let verifier_data = data.verifier_data();

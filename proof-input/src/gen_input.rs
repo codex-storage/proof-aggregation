@@ -396,6 +396,7 @@ mod tests {
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
+    use serde::Serialize;
     use crate::params::{C, D, F};
 
     // Test sample cells (non-circuit)
