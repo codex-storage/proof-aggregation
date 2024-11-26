@@ -57,6 +57,14 @@ fn bench_prove_verify(c: &mut Criterion) {
     println!("Build time: {:?}", build_duration);
     println!("Circuit size (degree bits): {:?}", data.common.degree_bits());
 
+    // Benchmark the Proving Phase
+    group.bench_function("Prove Circuit", |b| {
+        b.iter(|| {
+            let local_pw = pw.clone();
+            data.prove(local_pw).expect("Failed to prove circuit")
+        })
+    });
+
     // Generate the proof once for verification benchmarking
     let prove_start = std::time::Instant::now();
     let proof_with_pis = data.prove(pw.clone()).expect("Failed to prove circuit");
