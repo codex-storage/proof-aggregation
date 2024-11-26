@@ -47,9 +47,9 @@ impl<
 #[derive(Clone)]
 pub struct SampleTargets {
 
-    pub entropy: HashOutTarget,
-    pub dataset_root: HashOutTarget,
-    pub slot_index: Target,
+    pub entropy: HashOutTarget, // public input
+    pub dataset_root: HashOutTarget, // public input
+    pub slot_index: Target, // public input
 
     pub slot_root: HashOutTarget,
     pub n_cells_per_slot: Target,
@@ -67,9 +67,9 @@ pub struct SampleCircuitInput<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 >{
-    pub entropy: HashOut<F>,
-    pub dataset_root: HashOut<F>,
-    pub slot_index: F,
+    pub entropy: HashOut<F>, // public input
+    pub dataset_root: HashOut<F>, // public input
+    pub slot_index: F, // public input
 
     pub slot_root: HashOut<F>,
     pub n_cells_per_slot: F,
@@ -136,7 +136,7 @@ impl<
 
         // Create virtual target for slot root and index
         let slot_root = builder.add_virtual_hash();
-        let slot_index = builder.add_virtual_target();
+        let slot_index = builder.add_virtual_public_input();// public input
 
         // dataset path bits (binary decomposition of leaf_index)
         let d_path_bits = builder.split_le(slot_index,max_log2_n_slots);
@@ -167,7 +167,7 @@ impl<
             MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut d_targets, max_log2_n_slots);
 
         // expected Merkle root
-        let d_expected_root = builder.add_virtual_hash();
+        let d_expected_root = builder.add_virtual_hash_public_input(); // public input
 
         // check equality with expected root
         for i in 0..NUM_HASH_OUT_ELTS {
@@ -178,7 +178,7 @@ impl<
 
         let mut data_targets =vec![];
         let mut slot_sample_proofs = vec![];
-        let entropy_target = builder.add_virtual_hash();
+        let entropy_target = builder.add_virtual_hash_public_input(); // public input
 
         // virtual target for n_cells_per_slot
         let n_cells_per_slot = builder.add_virtual_target();
