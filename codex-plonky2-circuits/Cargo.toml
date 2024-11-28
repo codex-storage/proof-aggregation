@@ -11,8 +11,8 @@ anyhow     = { version = "1.0.89" }
 unroll = { version = "0.1.5", default-features = false }
 serde      = { version = "1.0.210" , features = ["rc"] }
 serde_json = { version = "1.0" }
-plonky2    = { version = "0.2.2" }
-plonky2_field = { version = "0.2.2", default-features = false }
+plonky2    = { version = "1.0.0" }
+plonky2_field = { version = "1.0.0", default-features = false }
 plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
 itertools = { version = "0.12.1", default-features = false }
 plonky2_maybe_rayon = { version = "0.2.0", default-features = false }

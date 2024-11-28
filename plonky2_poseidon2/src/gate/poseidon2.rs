@@ -392,7 +392,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
             .map(|column| Target::wire(self.row, column))
             .collect()
     }
-    fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+    fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) -> anyhow::Result<()> {
         let local_wire = |column| Wire {
             row: self.row,
             column,
@@ -468,6 +468,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
         for i in 0..SPONGE_WIDTH {
             out_buffer.set_wire(local_wire(Poseidon2Gate::<F, D>::wire_output(i)), state[i]);
         }
+        Ok(())
     }
 
     fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
@@ -558,7 +559,7 @@ mod tests {
             );
         }
 
-        let witness = generate_partial_witness(inputs, &circuit.prover_only, &circuit.common);
+        let witness = generate_partial_witness(inputs, &circuit.prover_only, &circuit.common).unwrap();
 
         let expected_outputs: [F; SPONGE_WIDTH] = F::poseidon2(permutation_inputs.try_into().unwrap());
         for i in 0..SPONGE_WIDTH {

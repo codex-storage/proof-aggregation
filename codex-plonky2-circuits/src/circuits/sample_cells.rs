@@ -354,7 +354,7 @@ impl<
             // assign proof for that cell
             let cell_proof = witnesses.merkle_paths[i].path.clone();
             for k in 0..max_depth {
-                pw.set_hash_target(targets.merkle_paths[i].path[k], cell_proof[k])
+                pw.set_hash_target(targets.merkle_paths[i].path[k], cell_proof[k]);
             }
         }
 
