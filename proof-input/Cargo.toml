@@ -7,10 +7,11 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-plonky2    = { version = "1.0.0" }
-plonky2_field = { version = "1.0.0", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+plonky2  = { workspace = true }
+plonky2_field = { workspace = true }
+# --- local ---
 plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
 codex-plonky2-circuits = { path = "../codex-plonky2-circuits" }

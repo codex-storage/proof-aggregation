@@ -7,11 +7,13 @@ use codex_plonky2_circuits::circuits::params::{CircuitParams, HF};
 use crate::params::TestParams;
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use codex_plonky2_circuits::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
-use codex_plonky2_circuits::circuits::sample_cells::{Cell, MerklePath, SampleCircuit, SampleCircuitInput};
+use codex_plonky2_circuits::circuits::sample_cells::{Cell, MerklePath, SampleCircuit, SampleCircuitInput, SampleTargets};
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::CircuitConfig;
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
+use plonky2::plonk::proof::ProofWithPublicInputs;
 use crate::sponge::{hash_bytes_no_padding, hash_n_with_padding};
+use crate::params::{C, D, F};
 
 /// generates circuit input (SampleCircuitInput) from fake data for testing
 /// which can be later stored into json see json.rs
@@ -386,6 +388,54 @@ impl<
     }
 }
 
+// build the sampling circuit
+// returns the proof and verifier ci
+pub fn build_circuit(n_samples: usize, slot_index: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>)>{
+    let (data, pw, _) = build_circuit_with_targets(n_samples, slot_index).unwrap();
+
+    Ok((data, pw))
+}
+
+// build the sampling circuit ,
+// returns the proof and verifier ci and targets
+pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>, SampleTargets)>{
+    // get input
+    let mut params = TestParams::default();
+    params.n_samples = n_samples;
+    params.testing_slot_index = slot_index;
+    let circ_input = gen_testing_circuit_input::<F,D>(&params);
+
+    // Create the circuit
+    let config = CircuitConfig::standard_recursion_config();
+    let mut builder = CircuitBuilder::<F, D>::new(config);
+
+    let mut circuit_params = CircuitParams::default();
+    circuit_params.n_samples = n_samples;
+
+    // build the circuit
+    let circ = SampleCircuit::new(circuit_params.clone());
+    let mut targets = circ.sample_slot_circuit(&mut builder);
+
+    // Create a PartialWitness and assign
+    let mut pw = PartialWitness::new();
+
+    // assign a witness
+    circ.sample_slot_assign_witness(&mut pw, &mut targets, circ_input);
+
+    // Build the circuit
+    let data = builder.build::<C>();
+
+    Ok((data, pw, targets))
+}
+
+// prove the circuit
+pub fn prove_circuit(data: &CircuitData<F, C, D>, pw: &PartialWitness<F>) -> anyhow::Result<ProofWithPublicInputs<F, C, D>>{
+    // Prove the circuit with the assigned witness
+    let proof_with_pis = data.prove(pw.clone())?;
+
+    Ok(proof_with_pis)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
@@ -395,48 +445,14 @@ mod tests {
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
-    use codex_plonky2_circuits::circuits::recursion::aggregate_sampling_proofs;
-    use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
+    use codex_plonky2_circuits::recursion::simple_recursion::{aggregate_sampling_proofs, aggregate_sampling_proofs_tree, aggregate_sampling_proofs_tree2};
+    use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleTargets};
+    use codex_plonky2_circuits::recursion::params::RecursionTreeParams;
     use plonky2::plonk::proof::ProofWithPublicInputs;
-    use crate::params::{C, D, F};
-
-    // build the sampling circuit and prove,
-    // returns the proof and verifier ci
-    pub fn build_circuit(n_samples: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>)>{
-        // get input
-        let mut params = TestParams::default();
-        params.n_samples = n_samples;
-        let circ_input = gen_testing_circuit_input::<F,D>(&params);
-
-        // Create the circuit
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        let mut circuit_params = CircuitParams::default();
-        circuit_params.n_samples = n_samples;
-
-        // build the circuit
-        let circ = SampleCircuit::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit(&mut builder);
-
-        // Create a PartialWitness and assign
-        let mut pw = PartialWitness::new();
-
-        // assign a witness
-        circ.sample_slot_assign_witness(&mut pw, &mut targets, circ_input);
-
-        // Build the circuit
-        let data = builder.build::<C>();
-
-        Ok((data, pw))
-    }
-
-    pub fn prove_circuit(data: &CircuitData<F, C, D>, pw: &PartialWitness<F>) -> anyhow::Result<ProofWithPublicInputs<F, C, D>>{
-        // Prove the circuit with the assigned witness
-        let proof_with_pis = data.prove(pw.clone())?;
-
-        Ok(proof_with_pis)
-    }
+    use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
+    use crate::json::write_bytes_to_file;
+    use codex_plonky2_circuits::recursion::simple_recursion2::{SimpleRecursionCircuit, SimpleRecursionInput};
+    // use crate::params::{C, D, F};
 
     // Test sample cells (non-circuit)
     #[test]
@@ -495,12 +511,20 @@ mod tests {
     fn test_recursion() -> anyhow::Result<()> {
         // number of samples in each proof
         let n_samples = 10;
-        // build the circuit
-        let (data, pw) = build_circuit(n_samples)?;
+        // number of inner proofs:
+        let n_inner = 4;
+
+        let mut data: Option<CircuitData<F, C, D>> = None;
+
         // get proofs
         let mut proofs_with_pi = vec![];
-        for i in 0..D{
-            proofs_with_pi.push(prove_circuit(&data, &pw)?);
+        for i in 0..n_inner{
+            // build the circuit
+            let (data_i, pw) = build_circuit(n_samples, i)?;
+            // prove
+            proofs_with_pi.push(prove_circuit(&data_i, &pw)?);
+            data = Some(data_i);
+
         }
 
         println!("num of public inputs inner proof = {}", proofs_with_pi[0].public_inputs.len());
@@ -511,7 +535,7 @@ mod tests {
         // Create a PartialWitness
         let mut pw_agg = PartialWitness::new();
         // aggregate proofs
-        aggregate_sampling_proofs(proofs_with_pi, &data.verifier_data(), &mut builder, &mut pw_agg);
+        aggregate_sampling_proofs(&proofs_with_pi, &data.unwrap().verifier_data(), &mut builder, &mut pw_agg)?;
 
         let data_agg = builder.build::<C>();
 
@@ -531,4 +555,121 @@ mod tests {
 
         Ok(())
     }
+
+    // Test tree recursion
+    #[test]
+    fn test_tree_recursion() -> anyhow::Result<()> {
+        // number of samples in each proof
+        let n_samples = 10;
+        // number of inner proofs:
+        let n_inner = 4;
+        let mut data: Option<CircuitData<F, C, D>> = None;
+
+        // get proofs
+        let mut proofs_with_pi = vec![];
+        for i in 0..n_inner{
+            // build the circuit
+            let (data_i, pw) = build_circuit(n_samples, i)?;
+            proofs_with_pi.push(prove_circuit(&data_i, &pw)?);
+            data = Some(data_i);
+        }
+
+        let data = data.unwrap();
+        println!("inner circuit size = {:?}", data.common.degree_bits());
+        let gate_serializer = DefaultGateSerializer;
+        let generator_serializer =DefaultGeneratorSerializer::<C, D>::default();
+        let data_bytes = data.to_bytes(&gate_serializer, &generator_serializer).unwrap();
+        println!("inner proof circuit data size = {} bytes", data_bytes.len());
+        let file_path = "inner_circ_data.bin";
+        // Write data to the file
+        write_bytes_to_file(data_bytes, file_path).unwrap();
+        println!("Data written to {}", file_path);
+
+        let start_time = Instant::now();
+        let (proof, vd_agg) = aggregate_sampling_proofs_tree(&proofs_with_pi, data)?;
+        println!("prove_time = {:?}", start_time.elapsed());
+        println!("num of public inputs = {}", proof.public_inputs.len());
+        println!("agg pub input = {:?}", proof.public_inputs);
+
+        println!("outer circuit size = {:?}", vd_agg.common.degree_bits());
+        // let gate_serializer = DefaultGateSerializer;
+        // let generator_serializer =DefaultGeneratorSerializer::<C, D>::default();
+        let outer_data_bytes = vd_agg.to_bytes(&gate_serializer, &generator_serializer).unwrap();
+        println!("outer proof circuit data size = {} bytes", outer_data_bytes.len());
+        let file_path = "outer_circ_data.bin";
+        // Write data to the file
+        write_bytes_to_file(outer_data_bytes, file_path).unwrap();
+        println!("Data written to {}", file_path);
+
+        // Verify the proof
+        let verifier_data = vd_agg.verifier_data();
+        assert!(
+            verifier_data.verify(proof).is_ok(),
+            "Merkle proof verification failed"
+        );
+
+        Ok(())
+    }
+
+    // test the tree recursion
+    #[test]
+    pub fn test_tree_recursion2()-> anyhow::Result<()>{
+        // number of samples in each proof
+        let n_samples = 10;
+        // number of inner proofs:
+        let n_inner = 4;
+        let mut data: Option<CircuitData<F, C, D>> = None;
+
+        // get proofs
+        let mut proofs_with_pi = vec![];
+        for i in 0..n_inner{
+            // build the circuit
+            let (data_i, pw) = build_circuit(n_samples, i)?;
+            proofs_with_pi.push(prove_circuit(&data_i, &pw)?);
+            data = Some(data_i);
+        }
+        let data = data.unwrap();
+
+        let rt_params = RecursionTreeParams::new(n_inner);
+
+        let rec_circuit = SimpleRecursionCircuit::new(rt_params, data.verifier_data());
+
+        // Create the circuit
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        // Create a PartialWitness
+        let mut pw = PartialWitness::new();
+
+        let targets = rec_circuit.build_circuit(&mut builder);
+
+        let start = Instant::now();
+        let agg_data = builder.build::<C>();
+        println!("build time = {:?}", start.elapsed());
+        println!("circuit size = {:?}", data.common.degree_bits());
+
+        let mut default_entropy = HashOut::ZERO;
+        default_entropy.elements[0] = F::from_canonical_u64(1234567);
+
+        let w = SimpleRecursionInput{
+            proofs: proofs_with_pi,
+            verifier_data: data.verifier_data(),
+            entropy: default_entropy,
+        };
+
+        rec_circuit.assign_witness(&mut pw,&targets,w)?;
+
+        let start = Instant::now();
+        let proof = agg_data.prove(pw)?;
+        println!("prove time = {:?}", start.elapsed());
+
+        // Verify the proof
+        let verifier_data = agg_data.verifier_data();
+        assert!(
+            verifier_data.verify(proof).is_ok(),
+            "Merkle proof verification failed"
+        );
+
+        Ok(())
+    }
+
 }

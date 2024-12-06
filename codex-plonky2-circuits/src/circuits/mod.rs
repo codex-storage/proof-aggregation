@@ -4,4 +4,3 @@ pub mod utils;
 pub mod params;
 pub mod keyed_compress;
 pub mod sponge;
-pub mod recursion;

@@ -3,20 +3,20 @@ name = "codex-plonky2-circuits"
 description = "Codex storage proofs circuits for Plonky2"
 authors = ["Mohammed Alghazwi <m.ghazwi@gmail.com>"]
 readme = "README.md"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-anyhow     = { version = "1.0.89" }
-unroll = { version = "0.1.5", default-features = false }
-serde      = { version = "1.0.210" , features = ["rc"] }
-serde_json = { version = "1.0" }
-plonky2    = { version = "1.0.0" }
-plonky2_field = { version = "1.0.0", default-features = false }
+anyhow     = { workplace = true }
+unroll = { workplace = true }
+serde      = { workplace = true }
+serde_json = { workplace = true }
+plonky2    = { workplace = true }
+plonky2_field = { workplace = true }
 plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
-itertools = { version = "0.12.1", default-features = false }
-plonky2_maybe_rayon = { version = "0.2.0", default-features = false }
-rand = "0.8.5"
+itertools = { workplace = true }
+plonky2_maybe_rayon = { workplace = true }
+hashbrown = "0.14.5"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false }

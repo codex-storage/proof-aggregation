@@ -1,3 +1,5 @@
+use std::{fs, io};
+use std::path::Path;
 use plonky2::hash::hash_types::{HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2_field::extension::Extendable;
@@ -82,4 +84,9 @@ pub fn add_assign_hash_out_target<
     for i in 0..NUM_HASH_OUT_ELTS {
         mut_hot.elements[i] = (builder.add(mut_hot.elements[i], hot.elements[i]));
     }
+}
+
+/// Reads the contents of the specified file and returns them as a vector of bytes using `std::fs::read`.
+pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
+    fs::read(path)
 }
