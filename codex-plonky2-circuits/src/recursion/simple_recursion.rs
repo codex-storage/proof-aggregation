@@ -1,3 +1,6 @@
+// this file is mainly draft implementation and experimentation of multiple simple approaches
+// NOTE: will be deleted later on ...
+
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField};
 use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};

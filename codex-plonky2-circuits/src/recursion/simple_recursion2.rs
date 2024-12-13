@@ -1,3 +1,6 @@
+// this is still simple recursion approach but written differently,
+// still needs to be improved/removed.
+
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
