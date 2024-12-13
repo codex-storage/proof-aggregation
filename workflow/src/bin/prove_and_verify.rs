@@ -23,12 +23,12 @@ fn main() -> Result<()> {
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
     let circ = SampleCircuit::new(circuit_params);
-    let mut targets = circ.sample_slot_circuit(&mut builder);
+    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
     // Create a PartialWitness and assign
     let mut pw = PartialWitness::new();
 
-    circ.sample_slot_assign_witness(&mut pw, &mut targets, circ_input);
+    circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input);
 
     // Build the circuit
     let build_time = Instant::now();

@@ -28,7 +28,7 @@ fn bench_prove_verify(c: &mut Criterion) {
 
     // Initialize the SampleCircuit with the parameters
     let circ = SampleCircuit::new(circuit_params.clone());
-    let mut targets = circ.sample_slot_circuit(&mut builder);
+    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
     // Create a PartialWitness and assign the circuit input
     let mut pw = PartialWitness::new();
@@ -43,7 +43,7 @@ fn bench_prove_verify(c: &mut Criterion) {
             let config = CircuitConfig::standard_recursion_config();
             let mut local_builder = CircuitBuilder::<F, D>::new(config);
             let local_circ = SampleCircuit::new(circuit_params.clone());
-            let mut local_targets = local_circ.sample_slot_circuit(&mut local_builder);
+            let mut local_targets = local_circ.sample_slot_circuit_with_public_input(&mut local_builder);
             let mut local_pw = PartialWitness::new();
             local_circ.sample_slot_assign_witness(&mut local_pw, &mut local_targets, circ_input.clone());
             let _data = local_builder.build::<C>();

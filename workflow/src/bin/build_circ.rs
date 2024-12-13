@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     let mut builder = CircuitBuilder::<F, D>::new(config);
     let circuit_params = params.circuit_params;
     let circ = SampleCircuit::new(circuit_params);
-    let mut targets = circ.sample_slot_circuit(&mut builder);
+    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
     // Build the circuit
     let build_time = Instant::now();
