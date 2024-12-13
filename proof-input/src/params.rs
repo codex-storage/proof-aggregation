@@ -10,7 +10,7 @@ use plonky2_poseidon2::config::Poseidon2GoldilocksConfig;
 
 // test types
 pub const D: usize = 2;
-pub type C = Poseidon2GoldilocksConfig;
+pub type C = PoseidonGoldilocksConfig;
 pub type F = <C as GenericConfig<D>>::F; // this is the goldilocks field
 // pub type H = PoseidonHash;
 // pub type HP = <PoseidonHash as plonky2::plonk::config::Hasher<F>>::Permutation;

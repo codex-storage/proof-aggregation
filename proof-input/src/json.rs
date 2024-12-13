@@ -384,7 +384,7 @@ mod tests {
         let circuit_params = CircuitParams::default();
 
         let circ = SampleCircuit::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit(&mut builder);
+        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
         // Create a PartialWitness and assign
         let mut pw = PartialWitness::new();
@@ -393,7 +393,7 @@ mod tests {
         let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
         println!("circuit input imported from input.json");
 
-        circ.sample_slot_assign_witness(&mut pw, &mut targets, imported_circ_input);
+        circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input);
 
         // Build the circuit
         let data = builder.build::<C>();
@@ -445,14 +445,14 @@ mod tests {
 
         let circuit_params = CircuitParams::default();
         let circ = SampleCircuit::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit(&mut builder);
+        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
         // Create a PartialWitness and assign
         let mut pw = PartialWitness::new();
 
         // gen circ input
         let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&params);
-        circ.sample_slot_assign_witness(&mut pw, &mut targets, imported_circ_input);
+        circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input);
 
         // Build the circuit
         let data = builder.build::<C>();
@@ -497,14 +497,14 @@ mod tests {
 
         let circuit_params = CircuitParams::default();
         let circ = SampleCircuit::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit(&mut builder);
+        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
         // Create a PartialWitness and assign
         let mut pw = PartialWitness::new();
 
         // gen circ input
         let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&params);
-        circ.sample_slot_assign_witness(&mut pw, &mut targets, imported_circ_input);
+        circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input);
 
         // Build the circuit
         let data = builder.build::<C>();
