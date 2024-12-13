@@ -21,7 +21,7 @@ use crate::circuits::sponge::{hash_n_no_padding, hash_n_with_padding};
 use crate::circuits::utils::{assign_hash_out_targets, ceiling_log2};
 
 /// circuit for sampling a slot in a dataset merkle tree
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SampleCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -44,7 +44,7 @@ impl<
 
 /// struct of input to the circuit as targets
 /// used to build the circuit and can be assigned after building
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SampleTargets {
 
     pub entropy: HashOutTarget, // public input
@@ -112,8 +112,22 @@ impl<
     const D: usize,
 > SampleCircuit<F, D> {
 
-    // in-circuit sampling
-    // TODO: make it more modular
+    /// samples and registers the public input
+    pub fn sample_slot_circuit_with_public_input(
+        &self,
+        builder: &mut CircuitBuilder::<F, D>,
+    )-> SampleTargets {
+        let targets = self.sample_slot_circuit(builder);
+        let mut pub_targets = vec![];
+        pub_targets.push(targets.slot_index);
+        pub_targets.extend_from_slice(&targets.dataset_root.elements);
+        pub_targets.extend_from_slice(&targets.entropy.elements);
+        builder.register_public_inputs(&pub_targets);
+        targets
+    }
+
+    /// in-circuit sampling
+    /// WARNING: no public input are registered when calling this function
     pub fn sample_slot_circuit(
         &self,
         builder: &mut CircuitBuilder::<F, D>,
@@ -136,7 +150,8 @@ impl<
 
         // Create virtual target for slot root and index
         let slot_root = builder.add_virtual_hash();
-        let slot_index = builder.add_virtual_public_input();// public input
+        let slot_index = builder.add_virtual_target();// public input
+        // let slot_index = builder.add_virtual_public_input();// public input
 
         // dataset path bits (binary decomposition of leaf_index)
         let d_path_bits = builder.split_le(slot_index,max_log2_n_slots);
@@ -167,7 +182,8 @@ impl<
             MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut d_targets, max_log2_n_slots);
 
         // expected Merkle root
-        let d_expected_root = builder.add_virtual_hash_public_input(); // public input
+        let d_expected_root = builder.add_virtual_hash(); // public input
+        // let d_expected_root = builder.add_virtual_hash_public_input(); // public input
 
         // check equality with expected root
         for i in 0..NUM_HASH_OUT_ELTS {
@@ -178,7 +194,8 @@ impl<
 
         let mut data_targets =vec![];
         let mut slot_sample_proofs = vec![];
-        let entropy_target = builder.add_virtual_hash_public_input(); // public input
+        let entropy_target = builder.add_virtual_hash(); // public input
+        // let entropy_target = builder.add_virtual_hash_public_input(); // public input
 
         // virtual target for n_cells_per_slot
         let n_cells_per_slot = builder.add_virtual_target();
@@ -310,8 +327,8 @@ impl<
     pub fn sample_slot_assign_witness(
         &self,
         pw: &mut PartialWitness<F>,
-        targets: &mut SampleTargets,
-        witnesses: SampleCircuitInput<F, D>,
+        targets: &SampleTargets,
+        witnesses: &SampleCircuitInput<F, D>,
     ){
         // circuit params
         let CircuitParams {
