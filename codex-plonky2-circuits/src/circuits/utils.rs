@@ -90,3 +90,19 @@ pub fn add_assign_hash_out_target<
 pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
     fs::read(path)
 }
+
+/// select hash helper method
+/// Computes `if b { h0 } else { h1 }`.
+pub fn select_hash<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+>(
+    builder: &mut CircuitBuilder<F, D>,
+    b: BoolTarget,
+    h0: HashOutTarget,
+    h1: HashOutTarget,
+) -> HashOutTarget {
+    HashOutTarget {
+        elements: core::array::from_fn(|i| builder.select(b, h0.elements[i], h1.elements[i])),
+    }
+}
