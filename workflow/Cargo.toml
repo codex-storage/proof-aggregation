@@ -53,3 +53,7 @@ harness = false
 [[bench]]
 name = "tree_recursion"
 harness = false
+
+[[bench]]
+name = "simple_tree_recursion"
+harness = false

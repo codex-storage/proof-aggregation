@@ -4,22 +4,18 @@
 mod tests {
     use std::time::Instant;
     use anyhow::Result;
-    use plonky2::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField};
+    use plonky2::hash::hash_types::HashOut;
     use plonky2::hash::hashing::hash_n_to_hash_no_pad;
-    use plonky2::hash::poseidon::{PoseidonHash, PoseidonPermutation};
-    use plonky2::iop::witness::{PartialWitness, PartitionWitness, WitnessWrite};
+    use plonky2::hash::poseidon::PoseidonPermutation;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
-    use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher, PoseidonGoldilocksConfig};
-    use plonky2::recursion::cyclic_recursion::check_cyclic_proof_verifier_data;
-    use plonky2::recursion::dummy_circuit::cyclic_base_proof;
+    use plonky2::plonk::circuit_data::CircuitConfig;
+    use plonky2::plonk::config::GenericConfig;
     use codex_plonky2_circuits::recursion::params::{F, D, C, Plonky2Proof};
     use codex_plonky2_circuits::recursion::sampling_inner_circuit::SamplingRecursion;
-    use codex_plonky2_circuits::recursion::inner_circuit::InnerCircuit;
     use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use crate::gen_input::gen_testing_circuit_input;
     use crate::params::TestParams;
-    use codex_plonky2_circuits::recursion::cyclic_recursion::{common_data_for_recursion, CyclicCircuit};
+    use codex_plonky2_circuits::recursion::cyclic_recursion::CyclicCircuit;
 
 
     /// Uses cyclic recursion to sample the dataset
@@ -33,7 +29,6 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let one = builder.one();
 
-        // Circuit that does the sampling
         let inner_sampling_circuit = SamplingRecursion::default();
         let mut params = TestParams::default();
         params.n_samples = 10;
@@ -87,7 +82,6 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let one = builder.one();
 
-        // Circuit that does the sampling
         let inner_sampling_circuit = SamplingRecursion::default();
         let mut params = TestParams::default();
         params.n_samples = 10;

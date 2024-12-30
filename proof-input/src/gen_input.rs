@@ -12,7 +12,7 @@ use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use crate::sponge::{hash_bytes_no_padding, hash_n_with_padding};
+use crate::sponge::hash_bytes_no_padding;
 use crate::params::{C, D, F};
 
 /// generates circuit input (SampleCircuitInput) from fake data for testing
@@ -388,16 +388,16 @@ impl<
     }
 }
 
-// build the sampling circuit
-// returns the proof and verifier ci
+/// build the sampling circuit
+/// returns the proof and circuit data
 pub fn build_circuit(n_samples: usize, slot_index: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>)>{
     let (data, pw, _) = build_circuit_with_targets(n_samples, slot_index).unwrap();
 
     Ok((data, pw))
 }
 
-// build the sampling circuit ,
-// returns the proof and verifier ci and targets
+/// build the sampling circuit ,
+/// returns the proof, circuit data, and targets
 pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>, SampleTargets)>{
     // get input
     let mut params = TestParams::default();
@@ -428,7 +428,7 @@ pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow
     Ok((data, pw, targets))
 }
 
-// prove the circuit
+/// prove the circuit
 pub fn prove_circuit(data: &CircuitData<F, C, D>, pw: &PartialWitness<F>) -> anyhow::Result<ProofWithPublicInputs<F, C, D>>{
     // Prove the circuit with the assigned witness
     let proof_with_pis = data.prove(pw.clone())?;
@@ -436,22 +436,26 @@ pub fn prove_circuit(data: &CircuitData<F, C, D>, pw: &PartialWitness<F>) -> any
     Ok(proof_with_pis)
 }
 
+/// returns exactly M default circuit input
+pub fn get_m_default_circ_input<const M: usize>() -> [SampleCircuitInput<codex_plonky2_circuits::recursion::params::F,D>; M]{
+    let params = TestParams::default();
+    let one_circ_input = gen_testing_circuit_input::<codex_plonky2_circuits::recursion::params::F,D>(&params);
+    let circ_input: [SampleCircuitInput<codex_plonky2_circuits::recursion::params::F,D>; M] = (0..M)
+        .map(|_| one_circ_input.clone())
+        .collect::<Vec<_>>()
+        .try_into().unwrap();
+    circ_input
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
     use super::*;
-    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
-    use plonky2::plonk::config::GenericConfig;
+    use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
-    use codex_plonky2_circuits::recursion::simple_recursion::{aggregate_sampling_proofs, aggregate_sampling_proofs_tree, aggregate_sampling_proofs_tree2};
-    use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleTargets};
-    use codex_plonky2_circuits::recursion::params::RecursionTreeParams;
-    use plonky2::plonk::proof::ProofWithPublicInputs;
-    use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
-    use crate::json::write_bytes_to_file;
-    use codex_plonky2_circuits::recursion::simple_recursion2::{SimpleRecursionCircuit, SimpleRecursionInput};
+    use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
     // use crate::params::{C, D, F};
 
     // Test sample cells (non-circuit)
