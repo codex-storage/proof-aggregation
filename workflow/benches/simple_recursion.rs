@@ -9,6 +9,7 @@ use proof_input::params::{D, C, F, Params, TestParams};
 use proof_input::gen_input::{build_circuit, prove_circuit};
 
 /// Benchmark for building, proving, and verifying the Plonky2 recursion circuit.
+/// Simple recursion approach - verify N proofs in-circuit
 fn bench_recursion(c: &mut Criterion) {
     // num of inner proofs
     let num_of_inner_proofs = 4;

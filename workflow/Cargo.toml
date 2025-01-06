@@ -47,11 +47,15 @@ name = "sample_cells"
 harness = false
 
 [[bench]]
-name = "recursion"
+name = "simple_recursion"
 harness = false
 
 [[bench]]
-name = "tree_recursion"
+name = "tree_recursion_approach1"
+harness = false
+
+[[bench]]
+name = "tree_recursion_approach2"
 harness = false
 
 [[bench]]
