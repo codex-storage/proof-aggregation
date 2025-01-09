@@ -19,8 +19,8 @@ This crate is an implementation of the [codex storage proofs circuits](https://g
 
 - [`utils`](./src/circuits/utils.rs) contains helper functions.
 
-## Documentation
-writeup coming soon...
+- [`recursion`](./src/recursion) contains various approaches of implementing recursion circuits for aggregating proofs.
+
 
 ## Usage
 see [`workflow`](../workflow) for how to use the circuits and run them. 

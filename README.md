@@ -16,6 +16,6 @@ Repository organization
 
 Documentation
 -----------------
-To be added soon.
+See the write-ups on [plonky2 storage proofs](https://hackmd.io/@NQdG6IOmQE6astjwhJ6ACw/rJSsScfAR) and [proof recursion](https://hackmd.io/@NQdG6IOmQE6astjwhJ6ACw/rk85D2HX1e)
 
 **WARNING**: This repository contains work-in-progress prototypes, and has not received careful code review. It is NOT ready for production use.
