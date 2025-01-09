@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
@@ -12,15 +13,3 @@ pub type C = PoseidonGoldilocksConfig;
 pub type H = PoseidonHash;
 pub type Plonky2Proof = ProofWithPublicInputs<F, C, D>;
 
-
-pub struct RecursionTreeParams{
-    pub tree_width: usize,
-}
-
-impl RecursionTreeParams {
-    pub fn new(tree_width: usize) -> Self{
-        Self{
-            tree_width
-        }
-    }
-}
