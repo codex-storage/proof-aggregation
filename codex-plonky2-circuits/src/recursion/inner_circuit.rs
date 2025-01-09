@@ -1,6 +1,7 @@
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::plonk::circuit_data::CommonCircuitData;
 use crate::recursion::params::{F,C,D};
 
 /// InnerCircuit is the trait used to define the logic of the circuit and assign witnesses
@@ -9,7 +10,7 @@ pub trait InnerCircuit<
     // TODO: make it generic for F and D ?
 > {
     type Targets;
-    type Input;
+    type Input:Clone;
 
     /// build the circuit logic and return targets to be assigned later
     fn build(
@@ -30,4 +31,10 @@ pub trait InnerCircuit<
     fn get_pub_input_targets(
         targets: &Self::Targets,
     ) -> anyhow::Result<(Vec<Target>)>;
+
+    /// from the set of the targets, return only the targets which are public
+    /// TODO: this can probably be replaced with enum for Public/Private targets
+    fn get_common_data(
+        &self
+    ) -> anyhow::Result<(CommonCircuitData<F, D>)>;
 }

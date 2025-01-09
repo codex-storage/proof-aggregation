@@ -1,16 +1,25 @@
-use plonky2::iop::target::{BoolTarget, Target};
+use plonky2::iop::target::Target;
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::plonk::circuit_data::{CircuitConfig, CommonCircuitData};
 use crate::circuits::params::CircuitParams;
 use crate::circuits::sample_cells::{SampleCircuit, SampleCircuitInput, SampleTargets};
-use crate::recursion::params::{D, F};
+use crate::recursion::params::{D, F, C};
 use crate::recursion::inner_circuit::InnerCircuit;
-use crate::circuits::params;
 
 /// recursion Inner circuit for the sampling circuit
 #[derive(Clone, Debug)]
 pub struct SamplingRecursion {
     pub sampling_circ: SampleCircuit<F,D>,
+}
+
+impl SamplingRecursion {
+    pub fn new(circ_params: CircuitParams) -> Self{
+        let sampling_circ = SampleCircuit::new(circ_params);
+        Self{
+            sampling_circ,
+        }
+    }
 }
 
 impl Default for SamplingRecursion {
@@ -44,5 +53,19 @@ impl InnerCircuit for SamplingRecursion{
         pub_targets.extend_from_slice(&targets.entropy.elements);
 
         Ok(pub_targets)
+    }
+
+    /// return the common circuit data for the sampling circuit
+    /// uses the `standard_recursion_config`
+    fn get_common_data(&self) -> anyhow::Result<(CommonCircuitData<F, D>)> {
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        // build the inner circuit
+        self.sampling_circ.sample_slot_circuit_with_public_input(&mut builder);
+
+        let circ_data = builder.build::<C>();
+
+        Ok(circ_data.common)
     }
 }
