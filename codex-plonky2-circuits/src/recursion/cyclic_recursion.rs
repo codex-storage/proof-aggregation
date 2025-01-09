@@ -1,3 +1,7 @@
+// Cyclic approach to recursion where at each cycle you verify previous proof
+// and run the inner circuit -> resulting in one proof that again can be fed
+// into another cyclic circle.
+
 use hashbrown::HashMap;
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField};
 use plonky2::iop::target::{BoolTarget, Target};
