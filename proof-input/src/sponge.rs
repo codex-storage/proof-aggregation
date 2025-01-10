@@ -171,8 +171,7 @@ pub fn hash_bytes_to_m_no_padding<
 mod tests {
     use plonky2::field::types::Field;
     use crate::sponge::hash_n_with_padding;
-    use crate::params::{D, F};
-    use codex_plonky2_circuits::circuits::params::HF;
+    use crate::params::{D, F, HF};
 
     #[test]
     fn test_sponge_hash_rate_8() {

@@ -46,7 +46,7 @@ pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::{C, D, F};
+    use crate::params::{C, D, F, HF};
     use std::time::Instant;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
@@ -117,7 +117,7 @@ mod tests {
 
         let circuit_params = CircuitParams::default();
 
-        let circ = SampleCircuit::new(circuit_params.clone());
+        let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
         // Create a PartialWitness and assign
@@ -178,7 +178,7 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         let circuit_params = CircuitParams::default();
-        let circ = SampleCircuit::new(circuit_params.clone());
+        let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
         // Create a PartialWitness and assign
@@ -230,7 +230,7 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         let circuit_params = CircuitParams::default();
-        let circ = SampleCircuit::new(circuit_params.clone());
+        let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
         // Create a PartialWitness and assign

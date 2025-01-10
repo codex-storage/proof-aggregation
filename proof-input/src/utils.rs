@@ -1,7 +1,7 @@
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use codex_plonky2_circuits::circuits::params::HF;
+use crate::params::HF;
 use anyhow::Result;
 use plonky2::hash::hashing::PlonkyPermutation;
 use crate::sponge::hash_n_with_padding;

@@ -36,6 +36,7 @@ pub struct MerkleTreeCircuitInput<
 pub fn build_circuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 >(
     builder: &mut CircuitBuilder::<F, D>,
     depth: usize,
@@ -68,7 +69,7 @@ pub fn build_circuit<
     };
 
     // Add Merkle proof verification constraints to the circuit
-    let reconstructed_root_target = MerkleTreeCircuit::reconstruct_merkle_root_circuit_with_mask(builder, &mut targets, depth)?;
+    let reconstructed_root_target = MerkleTreeCircuit::<F,D,H>::reconstruct_merkle_root_circuit_with_mask(builder, &mut targets, depth)?;
 
     // Return MerkleTreeTargets
     Ok((targets, reconstructed_root_target))
@@ -175,7 +176,7 @@ mod tests {
         // create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let (mut targets, reconstructed_root_target) = build_circuit(&mut builder, max_depth)?;
+        let (mut targets, reconstructed_root_target) = build_circuit::<F,D,H>(&mut builder, max_depth)?;
 
         // expected Merkle root
         let expected_root = builder.add_virtual_hash();
@@ -251,7 +252,7 @@ mod tests {
 
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let (mut targets, reconstructed_root_target) = build_circuit(&mut builder, max_depth)?;
+        let (mut targets, reconstructed_root_target) = build_circuit::<F,D,H>(&mut builder, max_depth)?;
 
         // expected Merkle root
         let expected_root_target = builder.add_virtual_hash();

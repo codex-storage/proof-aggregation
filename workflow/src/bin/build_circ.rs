@@ -7,7 +7,7 @@ use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use plonky2_poseidon2::serialization::{DefaultGateSerializer,DefaultGeneratorSerializer};
 use proof_input::serialization::json::write_bytes_to_file;
 use proof_input::params::Params;
-use proof_input::params::{D, C, F};
+use proof_input::params::{D, C, F,HF};
 
 fn main() -> Result<()> {
     // Load the parameters from environment variables
@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     let config = CircuitConfig::standard_recursion_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
     let circuit_params = params.circuit_params;
-    let circ = SampleCircuit::new(circuit_params);
+    let circ = SampleCircuit::<F,D,HF>::new(circuit_params);
     let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
 
     // Build the circuit

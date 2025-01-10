@@ -12,9 +12,10 @@ use plonky2::{
     },
 };
 use std::marker::PhantomData;
+use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::keyed_compress::key_compress_circuit;
-use crate::circuits::params::HF;
+// use crate::circuits::params::HF;
 use crate::circuits::utils::{add_assign_hash_out_target, mul_hash_out_target};
 use crate::Result;
 use crate::error::CircuitError;
@@ -47,14 +48,16 @@ pub struct MerkleProofTarget {
 pub struct MerkleTreeCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
-    pub phantom_data: PhantomData<F>,
+    pub phantom_data: PhantomData<(F,H)>,
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> MerkleTreeCircuit<F, D> {
+    H: AlgebraicHasher<F>,
+> MerkleTreeCircuit<F, D, H> {
 
 
     pub fn new() -> Self{
@@ -143,7 +146,7 @@ impl<
             }
 
             // Compress them with a keyed-hash function
-            let combined_hash = key_compress_circuit::<F, D, HF>
+            let combined_hash = key_compress_circuit::<F, D, H>
                 (builder,
                 HashOutTarget::from_vec(left),
                 HashOutTarget::from_vec(right),

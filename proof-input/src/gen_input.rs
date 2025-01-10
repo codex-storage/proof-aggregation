@@ -3,7 +3,7 @@ use plonky2::plonk::config::{GenericConfig, Hasher};
 use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use codex_plonky2_circuits::circuits::params::{CircuitParams, HF};
+use codex_plonky2_circuits::circuits::params::CircuitParams;
 use crate::params::TestParams;
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use crate::merkle_tree::merkle_safe::MerkleProof;
@@ -14,7 +14,7 @@ use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use crate::data_structs::DatasetTree;
 use crate::sponge::hash_bytes_no_padding;
-use crate::params::{C, D, F};
+use crate::params::{C, D, F, HF};
 
 /// generates circuit input (SampleCircuitInput) from fake data for testing
 /// which can be later stored into json see json.rs
@@ -169,7 +169,7 @@ pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow
     circuit_params.n_samples = n_samples;
 
     // build the circuit
-    let circ = SampleCircuit::new(circuit_params.clone());
+    let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
     let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
     // Create a PartialWitness and assign
@@ -238,7 +238,7 @@ mod tests {
         circuit_params.n_samples = 10;
 
         // build the circuit
-        let circ = SampleCircuit::new(circuit_params.clone());
+        let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
         // Create a PartialWitness and assign

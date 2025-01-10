@@ -19,12 +19,13 @@ use plonky2::{
     },
     plonk::circuit_builder::CircuitBuilder,
 };
+use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
 use crate::{
     circuits::{
     merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets},
-    params::{CircuitParams, HF},
+    params::CircuitParams,
     sponge::{hash_n_no_padding, hash_n_with_padding},
     utils::{assign_hash_out_targets, ceiling_log2},
     },
@@ -37,15 +38,17 @@ use crate::{
 pub struct SampleCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
     params: CircuitParams,
-    phantom_data: PhantomData<F>,
+    phantom_data: PhantomData<(F,H)>,
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> SampleCircuit<F, D> {
+    H: AlgebraicHasher<F>,
+> SampleCircuit<F, D, H> {
     pub fn new(params: CircuitParams) -> Self{
         Self{
             params,
@@ -122,7 +125,8 @@ pub struct Cell<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> SampleCircuit<F, D> {
+    H: AlgebraicHasher<F>,
+> SampleCircuit<F, D, H> {
 
     /// samples and registers the public input
     pub fn sample_slot_circuit_with_public_input(
@@ -190,7 +194,7 @@ impl<
 
         // dataset reconstructed root
         let d_reconstructed_root =
-            MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut d_targets, max_log2_n_slots)?;
+            MerkleTreeCircuit::<F,D, H>::reconstruct_merkle_root_circuit_with_mask(builder, &mut d_targets, max_log2_n_slots)?;
 
         // expected Merkle root
         let d_expected_root = builder.add_virtual_hash(); // public input
@@ -237,7 +241,7 @@ impl<
             let mut hash_inputs:Vec<Target>= Vec::new();
             hash_inputs.extend_from_slice(&data_i);
             // let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
-            let data_i_hash = hash_n_no_padding::<F,D,HF>(builder, hash_inputs)?;
+            let data_i_hash = hash_n_no_padding::<F,D,H>(builder, hash_inputs)?;
             // make the counter into hash digest
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
@@ -269,7 +273,7 @@ impl<
             };
 
             // reconstruct block root
-            let b_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut block_targets, block_tree_depth)?;
+            let b_root = MerkleTreeCircuit::<F,D,H>::reconstruct_merkle_root_circuit_with_mask(builder, &mut block_targets, block_tree_depth)?;
 
             let mut slot_targets = MerkleTreeTargets {
                 leaf: b_root,
@@ -280,7 +284,7 @@ impl<
             };
 
             // reconstruct slot root with block root as leaf
-            let slot_reconstructed_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut slot_targets, max_depth-block_tree_depth)?;
+            let slot_reconstructed_root = MerkleTreeCircuit::<F,D,H>::reconstruct_merkle_root_circuit_with_mask(builder, &mut slot_targets, max_depth-block_tree_depth)?;
 
             // check equality with expected root
             for i in 0..NUM_HASH_OUT_ELTS {
@@ -323,7 +327,7 @@ impl<
         hash_inputs.extend_from_slice(&slot_root.elements);
         hash_inputs.extend_from_slice(&ctr.elements);
 
-        let hash_out = hash_n_with_padding::<F,D,HF>(builder, hash_inputs)?;
+        let hash_out = hash_n_with_padding::<F,D,H>(builder, hash_inputs)?;
         let cell_index_bits =  builder.low_bits(hash_out.elements[0], self.params.max_depth, 64);
 
         let mut masked_cell_index_bits = vec![];
