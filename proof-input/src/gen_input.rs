@@ -4,7 +4,7 @@ use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::params::CircuitParams;
-use crate::params::TestParams;
+use crate::params::{Params,InputParams};
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use crate::merkle_tree::merkle_safe::MerkleProof;
 use codex_plonky2_circuits::circuits::sample_cells::{MerklePath, SampleCircuit, SampleCircuitInput, SampleTargets};
@@ -21,7 +21,7 @@ use crate::params::{C, D, F, HF};
 pub fn gen_testing_circuit_input<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
->(params: &TestParams) -> SampleCircuitInput<F,D>{
+>(params: &InputParams) -> SampleCircuitInput<F,D>{
     let dataset_t = DatasetTree::<F, D>::new_for_testing(&params);
 
     let slot_index = params.testing_slot_index; // samples the specified slot
@@ -57,7 +57,7 @@ pub fn gen_testing_circuit_input<
 pub fn verify_circuit_input<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
->(circ_input: SampleCircuitInput<F,D>, params: &TestParams) -> bool{
+>(circ_input: SampleCircuitInput<F,D>, params: &InputParams) -> bool{
     let slot_index = circ_input.slot_index.to_canonical_u64();
     let slot_root = circ_input.slot_root.clone();
     // check dataset level proof
@@ -102,7 +102,7 @@ pub fn verify_circuit_input<
 pub fn verify_cell_proof<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
->(circ_input: &SampleCircuitInput<F,D>, params: &TestParams, cell_index: usize, ctr: usize) -> anyhow::Result<bool> {
+>(circ_input: &SampleCircuitInput<F,D>, params: &InputParams, cell_index: usize, ctr: usize) -> anyhow::Result<bool> {
     let mut block_path_bits = usize_to_bits_le(cell_index, params.max_depth);
     let last_index = params.n_cells - 1;
     let mut block_last_bits = usize_to_bits_le(last_index, params.max_depth);
@@ -156,16 +156,17 @@ pub fn build_circuit(n_samples: usize, slot_index: usize) -> anyhow::Result<(Cir
 /// returns the proof, circuit data, and targets
 pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>, SampleTargets)>{
     // get input
-    let mut params = TestParams::default();
-    params.n_samples = n_samples;
-    params.testing_slot_index = slot_index;
-    let circ_input = gen_testing_circuit_input::<F,D>(&params);
+    let mut params = Params::default();
+    let mut input_params = params.input_params;
+    input_params.n_samples = n_samples;
+    input_params.testing_slot_index = slot_index;
+    let circ_input = gen_testing_circuit_input::<F,D>(&input_params);
 
     // Create the circuit
     let config = CircuitConfig::standard_recursion_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
-    let mut circuit_params = CircuitParams::default();
+    let mut circuit_params = params.circuit_params;
     circuit_params.n_samples = n_samples;
 
     // build the circuit
@@ -193,10 +194,10 @@ pub fn prove_circuit(data: &CircuitData<F, C, D>, pw: &PartialWitness<F>) -> any
 }
 
 /// returns exactly M default circuit input
-pub fn get_m_default_circ_input<const M: usize>() -> [SampleCircuitInput<codex_plonky2_circuits::params::F,D>; M]{
-    let params = TestParams::default();
-    let one_circ_input = gen_testing_circuit_input::<codex_plonky2_circuits::params::F,D>(&params);
-    let circ_input: [SampleCircuitInput<codex_plonky2_circuits::params::F,D>; M] = (0..M)
+pub fn get_m_default_circ_input<const M: usize>() -> [SampleCircuitInput<F,D>; M]{
+    let params = Params::default().input_params;
+    let one_circ_input = gen_testing_circuit_input::<F,D>(&params);
+    let circ_input: [SampleCircuitInput<F,D>; M] = (0..M)
         .map(|_| one_circ_input.clone())
         .collect::<Vec<_>>()
         .try_into().unwrap();
@@ -217,7 +218,7 @@ mod tests {
     // Test sample cells (non-circuit)
     #[test]
     fn test_gen_verify_proof(){
-        let params = TestParams::default();
+        let params = Params::default().input_params;
         let w = gen_testing_circuit_input::<F,D>(&params);
         assert!(verify_circuit_input::<F,D>(w, &params));
     }
@@ -226,15 +227,16 @@ mod tests {
     #[test]
     fn test_proof_in_circuit() -> anyhow::Result<()> {
         // get input
-        let mut params = TestParams::default();
-        params.n_samples = 10;
-        let circ_input = gen_testing_circuit_input::<F,D>(&params);
+        let mut params = Params::default();
+        let mut input_params = params.input_params;
+        input_params.n_samples = 10;
+        let circ_input = gen_testing_circuit_input::<F,D>(&input_params);
 
         // Create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let mut circuit_params = CircuitParams::default();
+        let mut circuit_params = params.circuit_params;
         circuit_params.n_samples = 10;
 
         // build the circuit

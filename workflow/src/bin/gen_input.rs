@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     let params = Params::from_env()?;
 
     // generate circuit input with given parameters
-    let circ_input = gen_testing_circuit_input::<F,D>(&params.test);
+    let circ_input = gen_testing_circuit_input::<F,D>(&params.input_params);
 
     // export circuit parameters to json file
     let filename= "input.json";

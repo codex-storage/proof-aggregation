@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use plonky2_field::types::{Field, PrimeField64};
 use crate::gen_input::gen_testing_circuit_input;
-use crate::params::TestParams;
+use crate::params::InputParams;
 
 /// export circuit input to json file
 pub fn export_circ_input_to_json<
@@ -32,7 +32,7 @@ pub fn export_circ_input_to_json<
 pub fn generate_and_export_circ_input_to_json<
     F: RichField + Extendable<D> + Poseidon2 + Serialize,
     const D: usize,
->(params: &TestParams, filename: &str) -> anyhow::Result<()> {
+>(params: &InputParams, filename: &str) -> anyhow::Result<()> {
 
     let circ_input = gen_testing_circuit_input::<F,D>(params);
 

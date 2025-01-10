@@ -6,7 +6,7 @@ use codex_plonky2_circuits::circuits::sample_cells::Cell;
 use plonky2_field::types::Sample;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
-use crate::params::{TestParams, HF};
+use crate::params::{InputParams,Params, HF};
 use crate::sponge::hash_bytes_no_padding;
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le};
 
@@ -19,7 +19,7 @@ pub struct SlotTree<
     pub tree: MerkleTree<F, D>,         // slot tree
     pub block_trees: Vec<MerkleTree<F,D>>, // vec of block trees
     pub cell_data: Vec<Cell<F, D>>,  // cell data as field elements
-    pub params: TestParams,              // parameters
+    pub params: InputParams,              // parameters
 }
 
 impl<
@@ -27,7 +27,7 @@ impl<
     const D: usize,
 > SlotTree<F, D> {
     /// Create a slot tree with fake data, for testing only
-    pub fn new_default(params: &TestParams) -> Self {
+    pub fn new_default(params: &InputParams) -> Self {
         // generate fake cell data
         let cell_data = (0..params.n_cells)
             .map(|_| new_random_cell(params))
@@ -36,7 +36,7 @@ impl<
     }
 
     /// Create a new slot tree with the supplied cell data and parameters
-    pub fn new(cells: Vec<Cell<F, D>>, params: TestParams) -> Self {
+    pub fn new(cells: Vec<Cell<F, D>>, params: InputParams) -> Self {
         let leaves: Vec<HashOut<F>> = cells
             .iter()
             .map(|element| hash_bytes_no_padding::<F,D,HF>(&element.data))
@@ -106,7 +106,7 @@ pub struct DatasetTree<
 > {
     pub tree: MerkleTree<F,D>,          // dataset tree
     pub slot_trees: Vec<SlotTree<F, D>>, // vec of slot trees
-    pub params: TestParams,               // parameters
+    pub params: InputParams,               // parameters
 }
 
 /// Dataset Merkle proof struct, containing the dataset proof and sampled proofs.
@@ -127,7 +127,7 @@ impl<
     const D: usize,
 > DatasetTree<F, D> {
     /// Dataset tree with fake data, for testing only
-    pub fn new_default(params: &TestParams) -> Self {
+    pub fn new_default(params: &InputParams) -> Self {
         let mut slot_trees = vec![];
         let n_slots = 1 << params.dataset_depth_test();
         for _ in 0..n_slots {
@@ -137,7 +137,7 @@ impl<
     }
 
     /// Create data for only the specified slot index in params
-    pub fn new_for_testing(params: &TestParams) -> Self {
+    pub fn new_for_testing(params: &InputParams) -> Self {
         let mut slot_trees = vec![];
         // let n_slots = 1 << params.dataset_depth();
         let n_slots = params.n_slots;
@@ -172,7 +172,7 @@ impl<
     }
 
     /// Same as default but with supplied slot trees
-    pub fn new(slot_trees: Vec<SlotTree<F, D>>, params: TestParams) -> Self {
+    pub fn new(slot_trees: Vec<SlotTree<F, D>>, params: InputParams) -> Self {
         // get the roots of slot trees
         let slot_roots = slot_trees
             .iter()
@@ -248,7 +248,7 @@ impl<
 pub fn new_random_cell<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
->(params: &TestParams) -> Cell<F,D> {
+>(params: &InputParams) -> Cell<F,D> {
     let data = (0..params.n_field_elems_per_cell())
         .map(|_| F::rand())
         .collect::<Vec<_>>();

@@ -12,7 +12,7 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
 use plonky2::plonk::proof::CompressedProofWithPublicInputs;
 use serde_json::to_writer_pretty;
-use crate::params::TestParams;
+use crate::params::InputParams;
 
 // Function to export proof with public input to json file
 fn export_proof_with_pi_to_json<F, C, const D: usize>(
@@ -46,7 +46,7 @@ pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::{C, D, F, HF};
+    use crate::params::{C, D, F, HF, InputParams, Params};
     use std::time::Instant;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_export_circ_input_to_json() -> anyhow::Result<()> {
         // Create Params
-        let params = TestParams::default();
+        let params = Params::default().input_params;
         // Export the circuit input to JSON
         generate_and_export_circ_input_to_json::<F,D>(&params, "input.json")?;
 
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_export_import_circ_input() -> anyhow::Result<()> {
         // Create Params instance
-        let params = TestParams::default();
+        let params = Params::default().input_params;
 
         // Export the circuit input to JSON
         let original_circ_input = gen_testing_circuit_input(&params);
@@ -109,13 +109,11 @@ mod tests {
     // reads the json input from file and runs the circuit
     #[test]
     fn test_read_json_and_run_circuit() -> anyhow::Result<()> {
-        let params = TestParams::default();
-
         // Create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let circuit_params = CircuitParams::default();
+        let circuit_params = Params::default().circuit_params;
 
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
@@ -152,7 +150,7 @@ mod tests {
     // NOTE: expects that the json input proof uses the default params
     #[test]
     fn test_read_json_and_verify() -> anyhow::Result<()> {
-        let params = TestParams::default();
+        let params = Params::default().input_params;
 
         // Import the circuit input from JSON
         let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
@@ -171,13 +169,14 @@ mod tests {
     // test out custom default gate and generator serializers to export/import circuit data
     #[test]
     fn test_circuit_data_serializer() -> anyhow::Result<()> {
-        let params = TestParams::default();
+        let params = Params::default();
+        let input_params = params.input_params;
 
         // Create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let circuit_params = CircuitParams::default();
+        let circuit_params = params.circuit_params;
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
@@ -185,7 +184,7 @@ mod tests {
         let mut pw = PartialWitness::new();
 
         // gen circ input
-        let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&params);
+        let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&input_params);
         circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input)?;
 
         // Build the circuit
@@ -223,13 +222,14 @@ mod tests {
     // test proof with public input serialization
     #[test]
     fn test_proof_with_pi_serializer() -> anyhow::Result<()> {
-        let params = TestParams::default();
+        let params = Params::default();
+        let input_params = params.input_params;
 
         // Create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let circuit_params = CircuitParams::default();
+        let circuit_params = params.circuit_params;
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
         let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
@@ -237,7 +237,7 @@ mod tests {
         let mut pw = PartialWitness::new();
 
         // gen circ input
-        let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&params);
+        let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&input_params);
         circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input)?;
 
         // Build the circuit

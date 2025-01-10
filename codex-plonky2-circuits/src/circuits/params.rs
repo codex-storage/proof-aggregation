@@ -14,26 +14,6 @@ pub struct CircuitParams{
     pub n_samples: usize,
 }
 
-// hardcoded default constants
-const DEFAULT_MAX_DEPTH:usize = 32;
-const DEFAULT_MAX_LOG2_N_SLOTS:usize = 8;
-const DEFAULT_BLOCK_TREE_DEPTH:usize = 5;
-const DEFAULT_N_FIELD_ELEMS_PER_CELL:usize = 272;
-const DEFAULT_N_SAMPLES:usize = 5;
-
-/// Implement the Default trait for Params using the hardcoded constants
-impl Default for CircuitParams {
-    fn default() -> Self {
-        Self{
-            max_depth: DEFAULT_MAX_DEPTH,
-            max_log2_n_slots: DEFAULT_MAX_LOG2_N_SLOTS,
-            block_tree_depth: DEFAULT_BLOCK_TREE_DEPTH,
-            n_field_elems_per_cell: DEFAULT_N_FIELD_ELEMS_PER_CELL,
-            n_samples: DEFAULT_N_SAMPLES,
-        }
-    }
-}
-
 impl CircuitParams {
     /// Creates a new `CircuitParams` struct from environment.
     ///
@@ -45,12 +25,12 @@ impl CircuitParams {
     ///
     /// Returns an error if any environment variable is missing or fails to parse.
     pub fn from_env() -> Result<Self> {
-        let MAX_DEPTH = env::var("MAX_DEPTH")
+        let max_depth = env::var("MAX_DEPTH")
             .context("MAX_DEPTH is not set")?
             .parse::<usize>()
             .context("MAX_DEPTH must be a valid usize")?;
 
-        let MAX_LOG2_N_SLOTS = env::var("MAX_LOG2_N_SLOTS")
+        let max_log2_n_slots = env::var("MAX_LOG2_N_SLOTS")
             .context("MAX_LOG2_N_SLOTS is not set")?
             .parse::<usize>()
             .context("MAX_LOG2_N_SLOTS must be a valid usize")?;
@@ -71,8 +51,8 @@ impl CircuitParams {
             .context("N_SAMPLES must be a valid usize")?;
 
         Ok(CircuitParams {
-            max_depth: MAX_DEPTH,
-            max_log2_n_slots: MAX_LOG2_N_SLOTS,
+            max_depth,
+            max_log2_n_slots,
             block_tree_depth,
             n_field_elems_per_cell,
             n_samples,
