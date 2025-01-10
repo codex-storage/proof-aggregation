@@ -15,8 +15,8 @@ use std::marker::PhantomData;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use codex_plonky2_circuits::merkle_tree::merkle_safe::MerkleProof;
 use plonky2_field::goldilocks_field::GoldilocksField;
-use proof_input::tests::merkle_circuit;
-use proof_input::tests::merkle_circuit::{assign_witness, MerkleTreeCircuitInput};
+use proof_input::recursion::merkle_circuit;
+use proof_input::recursion::merkle_circuit::{assign_witness, MerkleTreeCircuitInput};
 use proof_input::utils::usize_to_bits_le;
 
 macro_rules! pretty_print {

@@ -5,7 +5,7 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use anyhow::Result;
 use std::time::Instant;
 
-use proof_input::json::import_circ_input_from_json;
+use proof_input::serialization::circuit_input::import_circ_input_from_json;
 use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
 use proof_input::params::{D, C, F};
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     let config = CircuitConfig::standard_recursion_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
     let circ = SampleCircuit::new(circuit_params);
-    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
+    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
     // Create a PartialWitness and assign
     let mut pw = PartialWitness::new();

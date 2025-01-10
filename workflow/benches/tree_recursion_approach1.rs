@@ -2,9 +2,9 @@ use anyhow::anyhow;
 use criterion::{Criterion, criterion_group, criterion_main};
 use plonky2::plonk::config::GenericConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use codex_plonky2_circuits::recursion::sampling_inner_circuit::SamplingRecursion;
+use codex_plonky2_circuits::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
 use codex_plonky2_circuits::recursion::tree_recursion::{NodeCircuit, TreeRecursion};
-use codex_plonky2_circuits::recursion::params::{C, D, F};
+use codex_plonky2_circuits::params::{C, D, F};
 use proof_input::gen_input::get_m_default_circ_input;
 
 

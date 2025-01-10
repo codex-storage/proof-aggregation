@@ -5,7 +5,7 @@ use anyhow::Result;
 use std::time::Instant;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use plonky2_poseidon2::serialization::{DefaultGateSerializer,DefaultGeneratorSerializer};
-use proof_input::json::write_bytes_to_file;
+use proof_input::serialization::json::write_bytes_to_file;
 use proof_input::params::Params;
 use proof_input::params::{D, C, F};
 

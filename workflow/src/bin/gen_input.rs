@@ -1,6 +1,6 @@
 use plonky2::plonk::config::GenericConfig;
 use anyhow::Result;
-use proof_input::json::export_circ_input_to_json;
+use proof_input::serialization::circuit_input::export_circ_input_to_json;
 use proof_input::gen_input::gen_testing_circuit_input;
 use proof_input::params::Params;
 use proof_input::params::{D, F};
