@@ -1,8 +1,9 @@
-use plonky2::iop::target::{BoolTarget, Target};
+use plonky2::iop::target::Target;
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CommonCircuitData;
-use crate::recursion::params::{F,C,D};
+use crate::Result;
+use crate::params::{F, D};
 
 /// InnerCircuit is the trait used to define the logic of the circuit and assign witnesses
 /// to that circuit instance.
@@ -16,7 +17,7 @@ pub trait InnerCircuit<
     fn build(
         &self,
         builder: &mut CircuitBuilder<F, D>,
-    ) -> anyhow::Result<Self::Targets>;
+    ) -> Result<Self::Targets>;
 
     /// assign the actual witness values for the current instance of the circuit.
     fn assign_targets(
@@ -24,17 +25,17 @@ pub trait InnerCircuit<
         pw: &mut PartialWitness<F>,
         targets: &Self::Targets,
         input: &Self::Input,
-    ) -> anyhow::Result<()>;
+    ) -> Result<()>;
 
     /// from the set of the targets, return only the targets which are public
     /// TODO: this can probably be replaced with enum for Public/Private targets
     fn get_pub_input_targets(
         targets: &Self::Targets,
-    ) -> anyhow::Result<(Vec<Target>)>;
+    ) -> Vec<Target>;
 
     /// from the set of the targets, return only the targets which are public
     /// TODO: this can probably be replaced with enum for Public/Private targets
     fn get_common_data(
         &self
-    ) -> anyhow::Result<(CommonCircuitData<F, D>)>;
+    ) -> Result<(CommonCircuitData<F, D>)>;
 }

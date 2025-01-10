@@ -5,20 +5,32 @@
 // - reconstruct the dataset merkle root using the slot root as leaf
 // - samples multiple cells by calling the sample_cells
 
-use plonky2::field::extension::Extendable;
-use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
-use plonky2::iop::target::{BoolTarget, Target};
-use plonky2::iop::witness::{PartialWitness, WitnessWrite};
-use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::config::GenericConfig;
 use std::marker::PhantomData;
-use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use plonky2::hash::hashing::PlonkyPermutation;
-use crate::circuits::params::{CircuitParams, HF};
 
-use crate::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
-use crate::circuits::sponge::{hash_n_no_padding, hash_n_with_padding};
-use crate::circuits::utils::{assign_hash_out_targets, ceiling_log2};
+use plonky2::{
+    field::extension::Extendable,
+    hash::{
+        hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField},
+        hashing::PlonkyPermutation,
+    },
+    iop::{
+        target::{BoolTarget, Target},
+        witness::{PartialWitness, WitnessWrite},
+    },
+    plonk::circuit_builder::CircuitBuilder,
+};
+use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
+
+use crate::{
+    circuits::{
+    merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets},
+    params::{CircuitParams, HF},
+    sponge::{hash_n_no_padding, hash_n_with_padding},
+    utils::{assign_hash_out_targets, ceiling_log2},
+    },
+    Result,
+    error::CircuitError,
+};
 
 /// circuit for sampling a slot in a dataset merkle tree
 #[derive(Clone, Debug)]
@@ -116,14 +128,14 @@ impl<
     pub fn sample_slot_circuit_with_public_input(
         &self,
         builder: &mut CircuitBuilder::<F, D>,
-    )-> SampleTargets {
-        let targets = self.sample_slot_circuit(builder);
+    ) -> Result<SampleTargets> {
+        let targets = self.sample_slot_circuit(builder)?;
         let mut pub_targets = vec![];
         pub_targets.push(targets.slot_index);
         pub_targets.extend_from_slice(&targets.dataset_root.elements);
         pub_targets.extend_from_slice(&targets.entropy.elements);
         builder.register_public_inputs(&pub_targets);
-        targets
+        Ok(targets)
     }
 
     /// in-circuit sampling
@@ -131,7 +143,7 @@ impl<
     pub fn sample_slot_circuit(
         &self,
         builder: &mut CircuitBuilder::<F, D>,
-    )-> SampleTargets {
+    ) -> Result<SampleTargets> {
         // circuit params
         let CircuitParams {
             max_depth,
@@ -144,7 +156,6 @@ impl<
         // constants
         let zero = builder.zero();
         let one = builder.one();
-        let two = builder.two();
 
         // ***** prove slot root is in dataset tree *********
 
@@ -179,7 +190,7 @@ impl<
 
         // dataset reconstructed root
         let d_reconstructed_root =
-            MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut d_targets, max_log2_n_slots);
+            MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut d_targets, max_log2_n_slots)?;
 
         // expected Merkle root
         let d_expected_root = builder.add_virtual_hash(); // public input
@@ -226,7 +237,7 @@ impl<
             let mut hash_inputs:Vec<Target>= Vec::new();
             hash_inputs.extend_from_slice(&data_i);
             // let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
-            let data_i_hash = hash_n_no_padding::<F,D,HF>(builder, hash_inputs);
+            let data_i_hash = hash_n_no_padding::<F,D,HF>(builder, hash_inputs)?;
             // make the counter into hash digest
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
@@ -238,7 +249,7 @@ impl<
                 }
             }
             // paths for block and slot
-            let mut b_path_bits = self.calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr, mask_bits.clone());
+            let mut b_path_bits = self.calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr, mask_bits.clone())?;
             let mut s_path_bits = b_path_bits.split_off(block_tree_depth);
 
             let mut b_merkle_path = MerkleProofTarget {
@@ -258,7 +269,7 @@ impl<
             };
 
             // reconstruct block root
-            let b_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut block_targets, block_tree_depth);
+            let b_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut block_targets, block_tree_depth)?;
 
             let mut slot_targets = MerkleTreeTargets {
                 leaf: b_root,
@@ -269,7 +280,7 @@ impl<
             };
 
             // reconstruct slot root with block root as leaf
-            let slot_reconstructed_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut slot_targets, max_depth-block_tree_depth);
+            let slot_reconstructed_root = MerkleTreeCircuit::<F,D>::reconstruct_merkle_root_circuit_with_mask(builder, &mut slot_targets, max_depth-block_tree_depth)?;
 
             // check equality with expected root
             for i in 0..NUM_HASH_OUT_ELTS {
@@ -290,7 +301,7 @@ impl<
 
         }
 
-        SampleTargets {
+        let st = SampleTargets {
             entropy: entropy_target,
             dataset_root: d_expected_root,
             slot_index,
@@ -300,17 +311,19 @@ impl<
             slot_proof: d_targets.merkle_path,
             cell_data: data_targets,
             merkle_paths: slot_sample_proofs,
-        }
+        };
+
+        Ok(st)
     }
 
     /// calculate the cell index = H( entropy | slotRoot | counter ) `mod` nCells
-    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder::<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Vec<BoolTarget> {
+    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder::<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Result<Vec<BoolTarget>> {
         let mut hash_inputs:Vec<Target>= Vec::new();
         hash_inputs.extend_from_slice(&entropy.elements);
         hash_inputs.extend_from_slice(&slot_root.elements);
         hash_inputs.extend_from_slice(&ctr.elements);
-        // let hash_out = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
-        let hash_out = hash_n_with_padding::<F,D,HF>(builder, hash_inputs);
+
+        let hash_out = hash_n_with_padding::<F,D,HF>(builder, hash_inputs)?;
         let cell_index_bits =  builder.low_bits(hash_out.elements[0], self.params.max_depth, 64);
 
         let mut masked_cell_index_bits = vec![];
@@ -320,7 +333,7 @@ impl<
             masked_cell_index_bits.push(BoolTarget::new_unsafe(builder.mul(mask_bits[i].target, cell_index_bits[i].target)));
         }
 
-        masked_cell_index_bits
+        Ok(masked_cell_index_bits)
     }
 
     /// helper method to assign the targets in the circuit to actual field elems
@@ -329,7 +342,7 @@ impl<
         pw: &mut PartialWitness<F>,
         targets: &SampleTargets,
         witnesses: &SampleCircuitInput<F, D>,
-    ){
+    ) -> Result<()>{
         // circuit params
         let CircuitParams {
             max_depth,
@@ -340,41 +353,66 @@ impl<
         } = self.params;
 
         // assign n_cells_per_slot
-        pw.set_target(targets.n_cells_per_slot, witnesses.n_cells_per_slot);
+        pw.set_target(targets.n_cells_per_slot, witnesses.n_cells_per_slot)
+            .map_err(|e| {
+                CircuitError::TargetAssignmentError("n_cells_per_slot".to_string(), e.to_string())
+            })?;
 
         // assign n_slots_per_dataset
-        pw.set_target(targets.n_slots_per_dataset, witnesses.n_slots_per_dataset);
+        pw.set_target(targets.n_slots_per_dataset, witnesses.n_slots_per_dataset)
+            .map_err(|e| {
+                CircuitError::TargetAssignmentError("n_slots_per_dataset".to_string(), e.to_string())
+            })?;
 
         // assign dataset proof
         for (i, sibling_hash) in witnesses.slot_proof.iter().enumerate() {
-            pw.set_hash_target(targets.slot_proof.path[i], *sibling_hash);
+            pw.set_hash_target(targets.slot_proof.path[i], *sibling_hash)
+                .map_err(|e| {
+                    CircuitError::HashTargetAssignmentError("slot_proof".to_string(), e.to_string())
+                })?;
         }
         // assign slot index
-        pw.set_target(targets.slot_index, witnesses.slot_index);
+        pw.set_target(targets.slot_index, witnesses.slot_index)
+            .map_err(|e| {
+                CircuitError::TargetAssignmentError("slot_index".to_string(), e.to_string())
+            })?;
 
         // assign the expected Merkle root of dataset to the target
-        pw.set_hash_target(targets.dataset_root, witnesses.dataset_root);
+        pw.set_hash_target(targets.dataset_root, witnesses.dataset_root)
+            .map_err(|e| {
+                CircuitError::HashTargetAssignmentError("dataset_root".to_string(), e.to_string())
+            })?;
 
         // assign the sampled slot
-        pw.set_hash_target(targets.slot_root, witnesses.slot_root);
+        pw.set_hash_target(targets.slot_root, witnesses.slot_root)
+            .map_err(|e| {
+                CircuitError::HashTargetAssignmentError("slot_root".to_string(), e.to_string())
+            })?;
 
         // assign entropy
-        assign_hash_out_targets(pw, &targets.entropy.elements, &witnesses.entropy.elements);
+        assign_hash_out_targets(pw, &targets.entropy, &witnesses.entropy)?;
 
         // do the sample N times
         for i in 0..n_samples {
             // assign cell data
             let leaf = witnesses.cell_data[i].data.clone();
             for j in 0..n_field_elems_per_cell{
-                pw.set_target(targets.cell_data[i].data[j], leaf[j]);
+                pw.set_target(targets.cell_data[i].data[j], leaf[j])
+                    .map_err(|e| {
+                        CircuitError::TargetAssignmentError("cell_data".to_string(), e.to_string())
+                    })?;
             }
             // assign proof for that cell
             let cell_proof = witnesses.merkle_paths[i].path.clone();
             for k in 0..max_depth {
-                pw.set_hash_target(targets.merkle_paths[i].path[k], cell_proof[k]);
+                pw.set_hash_target(targets.merkle_paths[i].path[k], cell_proof[k])
+                    .map_err(|e| {
+                        CircuitError::HashTargetAssignmentError("merkle_paths".to_string(), e.to_string())
+                    })?;
             }
         }
 
+        Ok(())
     }
 
 }

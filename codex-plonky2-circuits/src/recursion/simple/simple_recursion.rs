@@ -8,8 +8,9 @@ use plonky2::plonk::circuit_data::{VerifierCircuitData, VerifierCircuitTarget};
 use plonky2::plonk::config::GenericConfig;
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use crate::recursion::inner_circuit::InnerCircuit;
-use crate::recursion::params::{C, D, F, Plonky2Proof};
+use crate::recursion::circuits::inner_circuit::InnerCircuit;
+use crate::params::{C, D, F, Plonky2Proof};
+use crate::Result;
 
 /// aggregate sampling proofs
 /// This function takes:
@@ -25,7 +26,7 @@ pub fn aggregate_sampling_proofs<
     verifier_data: &VerifierCircuitData<F, C, D>,
     builder: &mut CircuitBuilder::<F, D>,
     pw: &mut PartialWitness<F>,
-)-> anyhow::Result<()>{
+)-> Result<()>{
     // the proof virtual targets
     let mut proof_targets = vec![];
     let mut inner_entropy_targets = vec![];

@@ -4,7 +4,7 @@ use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::GenericConfig;
-use codex_plonky2_circuits::recursion::simple_recursion::aggregate_sampling_proofs;
+use codex_plonky2_circuits::recursion::simple::simple_recursion::aggregate_sampling_proofs;
 use proof_input::params::{D, C, F, Params, TestParams};
 use proof_input::gen_input::{build_circuit, prove_circuit};
 

@@ -2,7 +2,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use plonky2::plonk::circuit_data::VerifierCircuitData;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use codex_plonky2_circuits::recursion::simple_tree_recursion::aggregate_sampling_proofs_tree2;
+use codex_plonky2_circuits::recursion::simple::simple_tree_recursion::aggregate_sampling_proofs_tree2;
 use proof_input::params::{C, D, F};
 use proof_input::gen_input::{build_circuit, prove_circuit};
 

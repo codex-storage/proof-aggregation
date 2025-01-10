@@ -4,7 +4,7 @@ use plonky2::gates::noop::NoopGate;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2::recursion::dummy_circuit::{cyclic_base_proof, dummy_circuit, dummy_proof};
 use hashbrown::HashMap;
-use crate::recursion::params::{C, D, F};
+use crate::params::{C, D, F};
 
 /// Generates `CommonCircuitData` usable for node recursion.
 /// the circuit being built here depends on M and N so must be re-generated

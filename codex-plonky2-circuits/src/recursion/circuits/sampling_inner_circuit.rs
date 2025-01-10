@@ -4,8 +4,9 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CommonCircuitData};
 use crate::circuits::params::CircuitParams;
 use crate::circuits::sample_cells::{SampleCircuit, SampleCircuitInput, SampleTargets};
-use crate::recursion::params::{D, F, C};
-use crate::recursion::inner_circuit::InnerCircuit;
+use crate::params::{D, F, C};
+use crate::recursion::circuits::inner_circuit::InnerCircuit;
+use crate::Result;
 
 /// recursion Inner circuit for the sampling circuit
 #[derive(Clone, Debug)]
@@ -36,33 +37,33 @@ impl InnerCircuit for SamplingRecursion{
     type Input = SampleCircuitInput<F, D>;
 
     /// build the circuit
-    fn build(&self, builder: &mut CircuitBuilder<F, D>) -> anyhow::Result<Self::Targets> {
-        Ok(self.sampling_circ.sample_slot_circuit(builder))
+    fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<Self::Targets> {
+        self.sampling_circ.sample_slot_circuit(builder)
     }
 
-    fn assign_targets(&self, pw: &mut PartialWitness<F>, targets: &Self::Targets, input: &Self::Input) -> anyhow::Result<()> {
-        Ok(self.sampling_circ.sample_slot_assign_witness(pw, targets, input))
+    fn assign_targets(&self, pw: &mut PartialWitness<F>, targets: &Self::Targets, input: &Self::Input) -> Result<()> {
+        self.sampling_circ.sample_slot_assign_witness(pw, targets, input)
     }
 
     /// returns the public input specific for this circuit which are:
     /// `[slot_index, dataset_root, entropy]`
-    fn get_pub_input_targets(targets: &Self::Targets) -> anyhow::Result<(Vec<Target>)> {
+    fn get_pub_input_targets(targets: &Self::Targets) -> Vec<Target> {
         let mut pub_targets = vec![];
         pub_targets.push(targets.slot_index.clone());
         pub_targets.extend_from_slice(&targets.dataset_root.elements);
         pub_targets.extend_from_slice(&targets.entropy.elements);
 
-        Ok(pub_targets)
+        pub_targets
     }
 
     /// return the common circuit data for the sampling circuit
     /// uses the `standard_recursion_config`
-    fn get_common_data(&self) -> anyhow::Result<(CommonCircuitData<F, D>)> {
+    fn get_common_data(&self) -> Result<(CommonCircuitData<F, D>)> {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         // build the inner circuit
-        self.sampling_circ.sample_slot_circuit_with_public_input(&mut builder);
+        self.sampling_circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
         let circ_data = builder.build::<C>();
 

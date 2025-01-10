@@ -5,14 +5,15 @@ use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData
 use plonky2::plonk::config::GenericConfig;
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use crate::recursion::params::{C, D, F, H};
-use crate::recursion::inner_circuit::InnerCircuit;
+use crate::params::{C, D, F, H};
+use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use anyhow::{anyhow, Result};
 use plonky2::recursion::cyclic_recursion::check_cyclic_proof_verifier_data;
 // use serde::de::Unexpected::Option;
 use crate::circuits::utils::select_hash;
-use crate::recursion::{leaf_circuit, utils};
-use crate::recursion::utils::{get_dummy_leaf_proof, get_dummy_node_proof};
+use crate::recursion::tree2::leaf_circuit;
+use crate::recursion::tree2::utils;
+use crate::recursion::tree2::utils::{get_dummy_leaf_proof, get_dummy_node_proof};
 
 /// the tree recursion struct simplifies the process
 /// of building, proving and verifying

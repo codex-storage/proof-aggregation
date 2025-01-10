@@ -7,18 +7,17 @@ use plonky2::hash::hash_types::{HashOut, HashOutTarget, RichField};
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierCircuitTarget};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2::recursion::dummy_circuit::cyclic_base_proof;
-use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use crate::recursion::params::{F,D,C,Plonky2Proof,H};
-use crate::recursion::inner_circuit::InnerCircuit;
-use anyhow::Result;
+use crate::params::{F,D,C,Plonky2Proof,H};
+use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use plonky2::gates::noop::NoopGate;
 use plonky2::recursion::cyclic_recursion::check_cyclic_proof_verifier_data;
 use crate::circuits::utils::select_hash;
+use crate::Result;
 
 /// cyclic circuit struct
 /// contains necessary data
@@ -79,7 +78,7 @@ impl<
         let inner_t = self.circ.build(& mut builder)?;
 
         // common data for recursion
-        let mut common_data = common_data_for_recursion();
+        let mut common_data = common_data_for_cyclic_recursion();
         // the hash of the public input
         let pub_input_hash = builder.add_virtual_hash_public_input();
         // verifier data for inner proofs
@@ -198,7 +197,7 @@ impl<
     ) -> Result<ProofWithPublicInputs<F, C, D>>{
 
         // asserts that n equals the number of input
-        assert_eq!(n, circ_input.len());
+        assert_eq!(n, circ_input.len()); // TODO: replace with err
 
         for i in 0..n {
             self.prove_one_layer(&circ_input[i])?;
@@ -212,7 +211,7 @@ impl<
         &mut self,
     ) -> Result<()>{
         if(self.cyclic_circuit_data.is_none() || self.latest_proof.is_none()){
-            panic!("no circuit data or proof found");
+            panic!("no circuit data or proof found"); // TODO: replace with err
         }
         let circ_data = self.cyclic_circuit_data.as_ref().unwrap();
         let proof = self.latest_proof.clone().unwrap();
@@ -224,7 +223,7 @@ impl<
 }
 
 /// Generates `CommonCircuitData` usable for recursion.
-pub fn common_data_for_recursion() -> CommonCircuitData<F, D>
+pub fn common_data_for_cyclic_recursion() -> CommonCircuitData<F, D>
 {
     // layer 1
     let config = CircuitConfig::standard_recursion_config();

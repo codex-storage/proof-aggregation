@@ -13,6 +13,7 @@ serde      = { workplace = true }
 serde_json = { workplace = true }
 plonky2    = { workplace = true }
 plonky2_field = { workplace = true }
+thiserror = { workplace = true }
 plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
 itertools = { workplace = true }
 plonky2_maybe_rayon = { workplace = true }

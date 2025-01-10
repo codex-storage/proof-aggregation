@@ -10,12 +10,12 @@ mod tests {
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::GenericConfig;
-    use codex_plonky2_circuits::recursion::params::{F, D, C, Plonky2Proof};
-    use codex_plonky2_circuits::recursion::sampling_inner_circuit::SamplingRecursion;
+    use codex_plonky2_circuits::params::{F, D, C, Plonky2Proof};
+    use codex_plonky2_circuits::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
     use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use crate::gen_input::gen_testing_circuit_input;
     use crate::params::TestParams;
-    use codex_plonky2_circuits::recursion::cyclic_recursion::CyclicCircuit;
+    use codex_plonky2_circuits::recursion::cyclic::CyclicCircuit;
 
 
     /// Uses cyclic recursion to sample the dataset

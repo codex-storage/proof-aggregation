@@ -5,6 +5,8 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
+use crate::error::CircuitError;
+use crate::Result;
 
 /// hash n targets (field elements) into hash digest / HashOutTarget (4 Goldilocks field elements)
 /// this function uses the 10* padding
@@ -15,8 +17,12 @@ pub fn hash_n_with_padding<
 >(
     builder: &mut CircuitBuilder<F, D>,
     inputs: Vec<Target>,
-) -> HashOutTarget {
-    HashOutTarget::from_vec( hash_n_to_m_with_padding::<F,D,H>(builder, inputs, NUM_HASH_OUT_ELTS))
+) -> Result<HashOutTarget> {
+    Ok(
+        HashOutTarget::from_vec(
+            hash_n_to_m_with_padding::<F,D,H>(builder, inputs, NUM_HASH_OUT_ELTS)?
+        )
+    )
 }
 
 pub fn hash_n_to_m_with_padding<
@@ -27,7 +33,7 @@ pub fn hash_n_to_m_with_padding<
     builder: &mut CircuitBuilder<F, D>,
     inputs: Vec<Target>,
     num_outputs: usize,
-) -> Vec<Target> {
+) -> Result<Vec<Target>> {
     let rate = H::AlgebraicPermutation::RATE;
     let width = H::AlgebraicPermutation::WIDTH; // rate + capacity
     let zero = builder.zero();
@@ -51,7 +57,7 @@ pub fn hash_n_to_m_with_padding<
                 chunk.push(input);
             } else {
                 // should not happen here
-                panic!("Insufficient input elements for chunk; expected more elements.");
+                return Err(CircuitError::InsufficientInputs(rate,chunk.len()));
             }
         }
         // Add the chunk to the state
@@ -96,7 +102,7 @@ pub fn hash_n_to_m_with_padding<
         for &s in state.squeeze() {
             outputs.push(s);
             if outputs.len() == num_outputs {
-                return outputs;
+                return Ok(outputs);
             }
         }
         state = builder.permute::<H>(state);
@@ -113,8 +119,12 @@ pub fn hash_n_no_padding<
 >(
     builder: &mut CircuitBuilder<F, D>,
     inputs: Vec<Target>,
-) -> HashOutTarget {
-    HashOutTarget::from_vec( hash_n_to_m_no_padding::<F, D, H>(builder, inputs, NUM_HASH_OUT_ELTS))
+) -> Result<HashOutTarget> {
+    Ok(
+        HashOutTarget::from_vec(
+            hash_n_to_m_no_padding::<F, D, H>(builder, inputs, NUM_HASH_OUT_ELTS)?
+        )
+    )
 }
 
 pub fn hash_n_to_m_no_padding<
@@ -125,11 +135,10 @@ pub fn hash_n_to_m_no_padding<
     builder: &mut CircuitBuilder<F, D>,
     inputs: Vec<Target>,
     num_outputs: usize,
-) -> Vec<Target> {
+) -> Result<Vec<Target>> {
     let rate = H::AlgebraicPermutation::RATE;
     let width = H::AlgebraicPermutation::WIDTH; // rate + capacity
     let zero = builder.zero();
-    let one = builder.one();
     let mut state = H::AlgebraicPermutation::new(core::iter::repeat(zero).take(width));
 
     // Set the domain separator at index 8
@@ -138,7 +147,9 @@ pub fn hash_n_to_m_no_padding<
     state.set_elt(dom_sep, 8);
 
     let n = inputs.len();
-    assert_eq!(n % rate, 0, "Input length ({}) must be divisible by rate ({})", n, rate);
+    if n % rate != 0 {
+        return Err(CircuitError::SpongeInputLengthMismatch(n, rate));
+    }
     let num_chunks = n / rate; // 10* padding
     let mut input_iter = inputs.iter();
 
@@ -150,7 +161,7 @@ pub fn hash_n_to_m_no_padding<
                 chunk.push(input);
             } else {
                 // should not happen here
-                panic!("Insufficient input elements for chunk; expected more elements.");
+                return Err(CircuitError::InsufficientInputs(rate,chunk.len()));
             }
         }
         // Add the chunk to the state
@@ -166,7 +177,7 @@ pub fn hash_n_to_m_no_padding<
         for &s in state.squeeze() {
             outputs.push(s);
             if outputs.len() == num_outputs {
-                return outputs;
+                return Ok(outputs);
             }
         }
         state = builder.permute::<H>(state);

@@ -2,7 +2,7 @@
 // consistent with the one in codex:
 // https://github.com/codex-storage/codex-storage-proofs-circuits/blob/master/circuit/codex/merkle.circom
 
-use anyhow::Result;
+// use anyhow::Result;
 use plonky2::{
     field::{extension::Extendable, types::Field},
     hash::hash_types::{HashOutTarget, RichField, NUM_HASH_OUT_ELTS},
@@ -16,7 +16,14 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::keyed_compress::key_compress_circuit;
 use crate::circuits::params::HF;
 use crate::circuits::utils::{add_assign_hash_out_target, mul_hash_out_target};
-use crate::merkle_tree::merkle_safe::{KEY_NONE,KEY_BOTTOM_LAYER};
+use crate::Result;
+use crate::error::CircuitError;
+
+// Constants for the keys used in compression
+pub const KEY_NONE: u64 = 0x0;
+pub const KEY_BOTTOM_LAYER: u64 = 0x1;
+pub const KEY_ODD: u64 = 0x2;
+pub const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
 
 /// Merkle tree targets representing the input to the circuit
 #[derive(Clone)]
@@ -72,13 +79,34 @@ impl<
         builder: &mut CircuitBuilder<F, D>,
         targets: &mut MerkleTreeTargets,
         max_depth: usize,
-    ) -> HashOutTarget {
+    ) -> Result<HashOutTarget> {
         let mut state: Vec<HashOutTarget> = Vec::with_capacity(max_depth+1);
         state.push(targets.leaf);
         let zero = builder.zero();
         let one = builder.one();
         let two = builder.two();
-        debug_assert_eq!(targets.path_bits.len(), targets.merkle_path.path.len());
+
+        // --- Basic checks on input sizes.
+        let path_len = targets.path_bits.len();
+        let proof_len = targets.merkle_path.path.len();
+        let mask_len = targets.mask_bits.len();
+        let last_len = targets.last_bits.len();
+
+        if path_len != proof_len {
+            return Err(CircuitError::PathBitsLengthMismatch(path_len, proof_len));
+        }
+
+        if mask_len != path_len + 1 {
+            return Err(CircuitError::MaskBitsLengthMismatch(mask_len, path_len+1));
+        }
+
+        if last_len != path_len {
+            return Err(CircuitError::LastBitsLengthMismatch(last_len, path_len));
+        }
+
+        if path_len != max_depth {
+            return Err(CircuitError::PathBitsMaxDepthMismatch(path_len, max_depth));
+        }
 
         // compute is_last
         let mut is_last = vec![BoolTarget::new_unsafe(zero); max_depth + 1];
@@ -115,7 +143,11 @@ impl<
             }
 
             // Compress them with a keyed-hash function
-            let combined_hash = key_compress_circuit::<F, D, HF>(builder, left, right, key);
+            let combined_hash = key_compress_circuit::<F, D, HF>
+                (builder,
+                HashOutTarget::from_vec(left),
+                HashOutTarget::from_vec(right),
+                key);
             state.push(combined_hash);
 
             i += 1;
@@ -129,7 +161,7 @@ impl<
             add_assign_hash_out_target(builder,&mut reconstructed_root, &mul_result);
         }
 
-        reconstructed_root
+        Ok(reconstructed_root)
 
     }
 }

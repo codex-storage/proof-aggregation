@@ -4,9 +4,9 @@ use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use crate::circuits::params::CircuitParams;
 use crate::circuits::sample_cells::SampleCircuit;
-use crate::recursion::params::{C, D, F, H};
-use crate::recursion::inner_circuit::InnerCircuit;
-use crate::recursion::sampling_inner_circuit::SamplingRecursion;
+use crate::params::{C, D, F, H};
+use crate::recursion::circuits::inner_circuit::InnerCircuit;
+use crate::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
 
 /// recursion Inner circuit for the sampling circuit
 #[derive(Clone, Debug)]

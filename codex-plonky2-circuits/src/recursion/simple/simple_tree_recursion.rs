@@ -2,8 +2,8 @@ use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, VerifierCircuitData};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::iop::witness::PartialWitness;
-use crate::recursion::params::{C, D, F};
-use crate::recursion::simple_recursion;
+use crate::params::{C, D, F};
+use crate::recursion::simple::simple_recursion;
 
 // recursion tree width or the number of proofs in each node in the tree
 const RECURSION_TREE_WIDTH: usize = 2;
