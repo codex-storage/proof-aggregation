@@ -1,8 +1,4 @@
 use plonky2::hash::hash_types::{HashOut, RichField};
-use plonky2::iop::witness::PartialWitness;
-use plonky2::plonk::circuit_data::{CircuitData, VerifierCircuitData};
-use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher};
-use plonky2::plonk::proof::{Proof, ProofWithPublicInputs};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::params::HF;
@@ -105,35 +101,4 @@ pub fn ceiling_log2(
     }
 
     (last_bits, mask)
-}
-
-/// prove given the circuit data and partial witness
-pub fn prove<
-    F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
->(
-    data: CircuitData<F, C, D>,
-    pw: PartialWitness<F>
-) -> Result<ProofWithPublicInputs<F, C, D>>{
-    let proof = data.prove(pw);
-    return proof
-}
-
-/// verify given verifier data, public input, and proof
-pub fn verify<
-    F: RichField + Extendable<D> + Poseidon2,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-    H: Hasher<F> + AlgebraicHasher<F>,
->(
-    verifier_data: &VerifierCircuitData<F, C, D>,
-    public_inputs: Vec<F>,
-    proof: Proof<F, C, D>
-)-> Result<()> {
-    verifier_data.verify(ProofWithPublicInputs {
-        proof,
-        public_inputs,
-    })
 }

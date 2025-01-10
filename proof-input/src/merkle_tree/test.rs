@@ -24,7 +24,7 @@ fn digest_seq<
 mod tests {
     use super::*;
     use anyhow::Result;
-    use codex_plonky2_circuits::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
+    use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
     use plonky2::hash::hash_types::HashOut;

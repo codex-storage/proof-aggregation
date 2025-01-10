@@ -11,15 +11,15 @@ mod tests {
     use plonky2::plonk::proof::ProofWithPublicInputs;
     use codex_plonky2_circuits::circuits::params::CircuitParams;
     use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
-    use codex_plonky2_circuits::recursion::params::{F, D, C, Plonky2Proof};
-    use codex_plonky2_circuits::recursion::sampling_inner_circuit::SamplingRecursion;
-    use codex_plonky2_circuits::recursion::inner_circuit::InnerCircuit;
+    use codex_plonky2_circuits::params::{F, D, C, Plonky2Proof};
+    use codex_plonky2_circuits::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
+    use codex_plonky2_circuits::recursion::circuits::inner_circuit::InnerCircuit;
     use codex_plonky2_circuits::recursion::leaf_circuit::{LeafCircuit, LeafInput};
     use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use crate::gen_input::gen_testing_circuit_input;
     use crate::params::TestParams;
     use codex_plonky2_circuits::recursion::tree_recursion2::{NodeCircuit as nodeC, TreeRecursion as TR};
-    use codex_plonky2_circuits::recursion::utils::{get_dummy_leaf_proof, get_dummy_node_proof};
+    use codex_plonky2_circuits::recursion::tree2::utils::{get_dummy_leaf_proof, get_dummy_node_proof};
     use crate::gen_input::get_m_default_circ_input;
 
     /// Uses node recursion to sample the dataset

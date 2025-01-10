@@ -10,9 +10,9 @@ mod tests {
     use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher, PoseidonGoldilocksConfig};
     use plonky2_field::types::Field;
     use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
-    use codex_plonky2_circuits::recursion::params::{F, D, C, Plonky2Proof};
-    use codex_plonky2_circuits::recursion::sampling_inner_circuit::SamplingRecursion;
-    use codex_plonky2_circuits::recursion::inner_circuit::InnerCircuit;
+    use codex_plonky2_circuits::params::{F, D, C, Plonky2Proof};
+    use codex_plonky2_circuits::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
+    use codex_plonky2_circuits::recursion::circuits::inner_circuit::InnerCircuit;
     use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use crate::gen_input::get_m_default_circ_input;
     use codex_plonky2_circuits::recursion::tree_recursion::{NodeCircuit, TreeRecursion};
