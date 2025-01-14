@@ -5,8 +5,6 @@ use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
 use std::env;
 use anyhow::{Result, Context};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
-use plonky2_field::goldilocks_field::GoldilocksField;
-use plonky2_poseidon2::config::Poseidon2GoldilocksConfig;
 
 // test types
 pub const D: usize = 2;

@@ -12,7 +12,6 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
 use plonky2::plonk::proof::CompressedProofWithPublicInputs;
 use serde_json::to_writer_pretty;
-use crate::params::InputParams;
 
 // Function to export proof with public input to json file
 fn export_proof_with_pi_to_json<F, C, const D: usize>(
@@ -46,9 +45,8 @@ pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::{C, D, F, HF, InputParams, Params};
+    use crate::params::{C, D, F, HF, Params};
     use std::time::Instant;
-    use codex_plonky2_circuits::circuits::params::CircuitParams;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;

@@ -3,47 +3,35 @@
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
-    use anyhow::{anyhow, Result};
-    use plonky2::hash::poseidon::PoseidonHash;
-    use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
-    use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher, PoseidonGoldilocksConfig};
+    use plonky2::plonk::config::{GenericConfig, GenericHashOut, Hasher};
     use plonky2_field::types::Field;
-    use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
-    use codex_plonky2_circuits::params::{F, D, C, Plonky2Proof};
+    use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
+    use crate::params::{C, D, F, HF, Params};
     use codex_plonky2_circuits::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
     use codex_plonky2_circuits::recursion::circuits::inner_circuit::InnerCircuit;
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
     use crate::gen_input::get_m_default_circ_input;
-    use codex_plonky2_circuits::recursion::tree_recursion::{NodeCircuit, TreeRecursion};
+    use codex_plonky2_circuits::recursion::tree1::tree_circuit::TreeRecursion;
 
     /// Uses node recursion to sample the dataset
     #[test]
-    fn test_node_recursion() -> Result<()> {
-        // const D: usize = 2;
-        // type C = PoseidonGoldilocksConfig;
-        // type F = <C as GenericConfig<D>>::F;
+    fn test_tree1_node_recursion() -> anyhow::Result<()> {
         const M: usize = 1;
         const N: usize = 2;
 
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        let one = builder.one();
+        let default_params = Params::default().circuit_params;
+        let inner_sampling_circuit = SamplingRecursion::<F,D,HF,C>::new(default_params);
 
-        let inner_sampling_circuit = SamplingRecursion::default();
-
-        let mut node = NodeCircuit::<_,M,N>::new(inner_sampling_circuit);
-        let mut tree_circ = TreeRecursion::new(node);
         let circ_input = get_m_default_circ_input::<M>();
 
         let s = Instant::now();
-        tree_circ.build()?;
+        let mut tree_circ = TreeRecursion::<F,D,_,M,N,C>::build::<HF>(inner_sampling_circuit)?;
         println!("build = {:?}", s.elapsed());
+        println!("tree circuit size = {:?}", tree_circ.node_circ.cyclic_circuit_data.common.degree_bits());
         let s = Instant::now();
         let proof = tree_circ.prove(&circ_input,None, true)?;
         println!("prove = {:?}", s.elapsed());
         println!("num of pi = {}", proof.public_inputs.len());
-        println!("pub input: {:?}", proof.public_inputs);
         let s = Instant::now();
         assert!(
             tree_circ.verify_proof(proof).is_ok(),
@@ -56,40 +44,32 @@ mod tests {
 
     /// Uses node recursion to sample the dataset
     #[test]
-    fn test_tree_recursion_approach1() -> Result<()> {
-        // const D: usize = 2;
-        // type C = PoseidonGoldilocksConfig;
-        // type F = <C as GenericConfig<D>>::F;
+    fn test_tree_recursion_approach1() -> anyhow::Result<()> {
         const M: usize = 1;
         const N: usize = 2;
 
         const DEPTH: usize = 3;
         const TOTAL_INPUT: usize = (N.pow(DEPTH as u32) - 1) / (N - 1);
 
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        let inner_sampling_circuit = SamplingRecursion::default();
-
-        let mut node = NodeCircuit::<_,M,N>::new(inner_sampling_circuit);
-        let mut tree_circ = TreeRecursion::new(node);
+        let default_params = Params::default().circuit_params;
+        let inner_sampling_circuit = SamplingRecursion::<F,D,HF,C>::new(default_params);
 
         let all_circ_input = get_m_default_circ_input::<TOTAL_INPUT>().to_vec();
 
         let s = Instant::now();
-        tree_circ.build()?;
+        let mut tree_circ = TreeRecursion::<F,D,_,M,N,C>::build::<HF>(inner_sampling_circuit)?;
         println!("build = {:?}", s.elapsed());
+        println!("tree circuit size = {:?}", tree_circ.node_circ.cyclic_circuit_data.common.degree_bits());
         let s = Instant::now();
         let proof = tree_circ.prove_tree(all_circ_input.clone(),DEPTH)?;
         println!("prove = {:?}", s.elapsed());
         println!("num of pi = {}", proof.public_inputs.len());
-        println!("pub input: {:?}", proof.public_inputs);
 
         // Extract the final public input hash from the proof
         let final_proof_hash = &proof.public_inputs[0..4];
 
         // Recompute the expected final public input hash (outside the circuit)
-        let expected_hash = compute_expected_pub_input_hash::<SamplingRecursion>(
+        let expected_hash = compute_expected_pub_input_hash(
             &all_circ_input,
             DEPTH,
             M,
@@ -112,8 +92,8 @@ mod tests {
     /// Recursively compute the final public input hash for a single node in the recursion tree.
     /// This is the same logic from `NodeCircuit::build_circuit`
     /// TODO: optimize this
-    fn compute_node_hash<I: InnerCircuit<Input = SampleCircuitInput<F,D>>>(
-        all_circ_inputs: &[I::Input],
+    fn compute_node_hash(
+        all_circ_inputs: &[SampleCircuitInput<F, D>],
         depth: usize,
         current_depth: usize,
         node_idx: usize,
@@ -133,12 +113,12 @@ mod tests {
             let mut pi_vec = vec![inp.slot_index];
             pi_vec.extend_from_slice(&inp.dataset_root.elements);
             pi_vec.extend_from_slice(&inp.entropy.elements);
-            let hash_res = PoseidonHash::hash_no_pad(&pi_vec);
+            let hash_res = HF::hash_no_pad(&pi_vec);
             outer_pi_hashes.extend_from_slice(&hash_res.elements);
         }
 
         // hash all these M hashes into one
-        let outer_pi_hash = PoseidonHash::hash_no_pad(&outer_pi_hashes);
+        let outer_pi_hash = HF::hash_no_pad(&outer_pi_hashes);
 
         let is_leaf = current_depth == depth - 1;
 
@@ -153,11 +133,11 @@ mod tests {
 
             let mut inner_pub_input_hashes = vec![];
             for i in child_start..child_start + N {
-                let child_hash = compute_node_hash::<I>(all_circ_inputs, depth, next_depth, i, M, N);
+                let child_hash = compute_node_hash(all_circ_inputs, depth, next_depth, i, M, N);
                 inner_pub_input_hashes.extend_from_slice(&child_hash);
             }
 
-            let inner_pub_input_hash = PoseidonHash::hash_no_pad(&inner_pub_input_hashes);
+            let inner_pub_input_hash = HF::hash_no_pad(&inner_pub_input_hashes);
             inner_pub_input_hash.elements
         };
 
@@ -166,20 +146,20 @@ mod tests {
         final_input.extend_from_slice(&outer_pi_hash.elements);
         final_input.extend_from_slice(&inner_pi_hash_or_zero);
 
-        let final_hash = PoseidonHash::hash_no_pad(&final_input);
+        let final_hash = HF::hash_no_pad(&final_input);
         final_hash.elements
     }
 
     /// Compute the expected public input hash for the entire recursion tree.
     /// This function calls `compute_node_hash` starting from the root (layer 0, node 0).
-    pub fn compute_expected_pub_input_hash<I: InnerCircuit<Input = SampleCircuitInput<F,D>>>(
-        all_circ_inputs: &[I::Input],
+    pub fn compute_expected_pub_input_hash(
+        all_circ_inputs: &[SampleCircuitInput<F, D>],
         depth: usize,
         M: usize,
         N: usize,
-    ) -> Result<Vec<F>> {
+    ) -> anyhow::Result<Vec<F>> {
         // The root node is at layer = 0 and node_idx = 0
-        let final_hash = compute_node_hash::<I>(all_circ_inputs, depth, 0, 0, M, N);
+        let final_hash = compute_node_hash(all_circ_inputs, depth, 0, 0, M, N);
         Ok(final_hash.to_vec())
     }
 }

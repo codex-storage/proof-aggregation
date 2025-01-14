@@ -38,9 +38,9 @@ pub fn build_circuit<
     const D: usize,
     H: AlgebraicHasher<F>,
 >(
-    builder: &mut CircuitBuilder::<F, D>,
+    builder: &mut CircuitBuilder<F, D>,
     depth: usize,
-) -> Result<(MerkleTreeTargets, HashOutTarget)> {
+) -> (MerkleTreeTargets, HashOutTarget) {
 
     // Create virtual targets
     let leaf = builder.add_virtual_hash();
@@ -69,10 +69,10 @@ pub fn build_circuit<
     };
 
     // Add Merkle proof verification constraints to the circuit
-    let reconstructed_root_target = MerkleTreeCircuit::<F,D,H>::reconstruct_merkle_root_circuit_with_mask(builder, &mut targets, depth)?;
+    let reconstructed_root_target = MerkleTreeCircuit::<F,D,H>::reconstruct_merkle_root_circuit_with_mask(builder, &mut targets, depth).unwrap();
 
     // Return MerkleTreeTargets
-    Ok((targets, reconstructed_root_target))
+    (targets, reconstructed_root_target)
 }
 
 /// assign the witness values in the circuit targets
@@ -176,7 +176,7 @@ mod tests {
         // create the circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let (mut targets, reconstructed_root_target) = build_circuit::<F,D,H>(&mut builder, max_depth)?;
+        let (mut targets, reconstructed_root_target) = build_circuit::<F,D,H>(&mut builder, max_depth);
 
         // expected Merkle root
         let expected_root = builder.add_virtual_hash();
@@ -252,7 +252,7 @@ mod tests {
 
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let (mut targets, reconstructed_root_target) = build_circuit::<F,D,H>(&mut builder, max_depth)?;
+        let (mut targets, reconstructed_root_target) = build_circuit::<F,D,H>(&mut builder, max_depth);
 
         // expected Merkle root
         let expected_root_target = builder.add_virtual_hash();
@@ -276,7 +276,7 @@ mod tests {
             let mut pw = PartialWitness::new();
 
             let path_bits = usize_to_bits_le(leaf_index, max_depth);
-            let last_index = (nleaves - 1) as usize;
+            let last_index = nleaves - 1;
             let last_bits = usize_to_bits_le(last_index, max_depth);
             let mask_bits = usize_to_bits_le(last_index, max_depth+1);
 

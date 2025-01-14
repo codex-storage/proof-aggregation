@@ -3,7 +3,6 @@ use plonky2::plonk::config::{GenericConfig, Hasher};
 use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use codex_plonky2_circuits::circuits::params::CircuitParams;
 use crate::params::{Params,InputParams};
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use crate::merkle_tree::merkle_safe::MerkleProof;

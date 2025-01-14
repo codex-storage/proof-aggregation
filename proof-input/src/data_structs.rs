@@ -6,7 +6,7 @@ use codex_plonky2_circuits::circuits::sample_cells::Cell;
 use plonky2_field::types::Sample;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
-use crate::params::{InputParams,Params, HF};
+use crate::params::{InputParams, HF};
 use crate::sponge::hash_bytes_no_padding;
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le};
 
