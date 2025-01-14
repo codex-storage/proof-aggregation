@@ -1,7 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use anyhow::Result;
 
-use codex_plonky2_circuits::{merkle_tree::merkle_safe::MerkleTree, circuits::merkle_circuit::MerkleTreeCircuit};
+use proof_input::merkle_tree::merkle_safe::{MerkleTree};
+// use codex_plonky2_circuits::{circuits::merkle_circuit::MerkleTreeCircuit};
 use plonky2::field::types::Field;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher, PoseidonGoldilocksConfig};
@@ -11,12 +12,11 @@ use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
-use std::marker::PhantomData;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use codex_plonky2_circuits::merkle_tree::merkle_safe::MerkleProof;
-use plonky2_field::goldilocks_field::GoldilocksField;
-use proof_input::recursion::merkle_circuit;
-use proof_input::recursion::merkle_circuit::{assign_witness, MerkleTreeCircuitInput};
+// use codex_plonky2_circuits::merkle_tree::merkle_safe::MerkleProof;
+// use plonky2_field::goldilocks_field::GoldilocksField;
+use proof_input::merkle_tree::merkle_circuit;
+use proof_input::merkle_tree::merkle_circuit::{assign_witness, MerkleTreeCircuitInput};
 use proof_input::utils::usize_to_bits_le;
 
 macro_rules! pretty_print {
@@ -109,7 +109,7 @@ fn build_circuit<
     let mut pw = PartialWitness::new();
 
     for i in 0..circ_inputs.len() {
-        let (mut targets, reconstructed_root_target) = merkle_circuit::build_circuit(&mut builder, max_depth);
+        let (mut targets, reconstructed_root_target) = merkle_circuit::build_circuit::<F,D,H>(&mut builder, max_depth);
 
         // expected Merkle root
         let expected_root_target = builder.add_virtual_hash();

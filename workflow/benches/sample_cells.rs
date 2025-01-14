@@ -6,18 +6,20 @@ use plonky2::plonk::circuit_data::CircuitConfig;
 use plonky2::plonk::config::GenericConfig;
 
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
-use codex_plonky2_circuits::circuits::params::CircuitParams;
 use proof_input::gen_input::gen_testing_circuit_input;
-use proof_input::params::{D, C, F, Params, TestParams};
+use proof_input::params::{D, C, F, HF, Params};
 
 /// Benchmark for building, proving, and verifying the Plonky2 circuit.
-fn bench_prove_verify(c: &mut Criterion) {
-    // get default parameters
-    let mut test_params = TestParams::default();
-    test_params.n_samples = 100;
+fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
 
-    let mut circuit_params = CircuitParams::default();
-    circuit_params.n_samples = 100;
+    let n_samples = 100;
+    // get default parameters
+    let params = Params::default();
+    let mut test_params = params.input_params;
+    test_params.n_samples = n_samples;
+
+    let mut circuit_params = params.circuit_params;
+    circuit_params.n_samples = n_samples;
 
     // gen the circuit input
     let circ_input = gen_testing_circuit_input::<F,D>(&test_params);
@@ -27,25 +29,24 @@ fn bench_prove_verify(c: &mut Criterion) {
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
     // Initialize the SampleCircuit with the parameters
-    let circ = SampleCircuit::new(circuit_params.clone());
-    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder);
+    let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
+    let targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
     // Create a PartialWitness and assign the circuit input
     let mut pw = PartialWitness::new();
-    circ.sample_slot_assign_witness(&mut pw, &mut targets, circ_input.clone());
+    circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input.clone());
 
     // Benchmark Group: Separate benchmarks for building, proving, and verifying
-    let mut group = c.benchmark_group("Prove and Verify");
+    let mut group = c.benchmark_group("Sampling Circuit Benchmark");
 
     // Benchmark the Circuit Building Phase
     group.bench_function("Build Circuit", |b| {
         b.iter(|| {
             let config = CircuitConfig::standard_recursion_config();
             let mut local_builder = CircuitBuilder::<F, D>::new(config);
-            let local_circ = SampleCircuit::new(circuit_params.clone());
-            let mut local_targets = local_circ.sample_slot_circuit_with_public_input(&mut local_builder);
-            let mut local_pw = PartialWitness::new();
-            local_circ.sample_slot_assign_witness(&mut local_pw, &mut local_targets, circ_input.clone());
+            let local_targets = targets.clone();
+            let mut local_pw = pw.clone();
+            circ.sample_slot_assign_witness(&mut local_pw, &local_targets, &circ_input.clone());
             let _data = local_builder.build::<C>();
         })
     });
@@ -91,6 +92,7 @@ fn bench_prove_verify(c: &mut Criterion) {
     });
 
     group.finish();
+    Ok(())
 }
 
 /// Criterion benchmark group

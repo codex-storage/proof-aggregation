@@ -11,6 +11,7 @@ use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::proof::ProofWithPublicInputs;
+use codex_plonky2_circuits::circuits::params::CircuitParams;
 use crate::data_structs::DatasetTree;
 use crate::sponge::hash_bytes_no_padding;
 use crate::params::{C, D, F, HF};
@@ -195,6 +196,18 @@ pub fn prove_circuit(data: &CircuitData<F, C, D>, pw: &PartialWitness<F>) -> any
 /// returns exactly M default circuit input
 pub fn get_m_default_circ_input<const M: usize>() -> [SampleCircuitInput<F,D>; M]{
     let params = Params::default().input_params;
+    // let one_circ_input = gen_testing_circuit_input::<F,D>(&params);
+    // let circ_input: [SampleCircuitInput<F,D>; M] = (0..M)
+    //     .map(|_| one_circ_input.clone())
+    //     .collect::<Vec<_>>()
+    //     .try_into().unwrap();
+    // circ_input
+    get_m_circ_input::<M>(params)
+}
+
+/// returns exactly M default circuit input
+pub fn get_m_circ_input<const M: usize>(params: InputParams) -> [SampleCircuitInput<F,D>; M]{
+    // let params = Params::default().input_params;
     let one_circ_input = gen_testing_circuit_input::<F,D>(&params);
     let circ_input: [SampleCircuitInput<F,D>; M] = (0..M)
         .map(|_| one_circ_input.clone())
