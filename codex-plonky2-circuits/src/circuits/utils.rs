@@ -16,7 +16,7 @@ pub fn ceiling_log2<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
 >(
-    builder: &mut CircuitBuilder::<F, D>,
+    builder: &mut CircuitBuilder<F, D>,
     inp: Target,
     n: usize,
 )-> (Vec<BoolTarget>, Vec<BoolTarget>){
@@ -29,7 +29,7 @@ pub fn ceiling_log2<
     aux[n] = BoolTarget::new_unsafe(one.clone());
     let mut mask: Vec<BoolTarget> = vec![BoolTarget::new_unsafe(zero.clone()); n + 1];
     for i in (0..n).rev(){
-        let diff = (builder.sub(one.clone(), last_bits[i].target));
+        let diff = builder.sub(one.clone(), last_bits[i].target);
         let aux_i = builder.mul( aux[i+1].target, diff);
         aux[i] = BoolTarget::new_unsafe(aux_i);
         mask[i] = BoolTarget::new_unsafe(builder.sub(one.clone(), aux[i].target));
@@ -102,7 +102,7 @@ pub fn add_assign_hash_out_target<
     const D: usize,
 >(builder: &mut CircuitBuilder<F, D>, mut_hot: &mut HashOutTarget, hot: &HashOutTarget) {
     for i in 0..NUM_HASH_OUT_ELTS {
-        mut_hot.elements[i] = (builder.add(mut_hot.elements[i], hot.elements[i]));
+        mut_hot.elements[i] = builder.add(mut_hot.elements[i], hot.elements[i]);
     }
 }
 
@@ -125,4 +125,13 @@ pub fn select_hash<
     HashOutTarget {
         elements: core::array::from_fn(|i| builder.select(b, h0.elements[i], h1.elements[i])),
     }
+}
+
+/// Converts a Vec<T> into a fixed-size array [T; N], returning an error if the lengths don't match.
+pub fn vec_to_array<const N: usize, T>(vec: Vec<T>) -> Result<[T; N]> {
+    vec.try_into().map_err(|v: Vec<T>| CircuitError::ArrayLengthMismatchError(format!(
+        "Expected exactly {} elements, got {}",
+        N,
+        v.len()
+    )))
 }

@@ -2,7 +2,6 @@
 // consistent with the one in codex:
 // https://github.com/codex-storage/codex-storage-proofs-circuits/blob/master/circuit/codex/merkle.circom
 
-// use anyhow::Result;
 use plonky2::{
     field::{extension::Extendable, types::Field},
     hash::hash_types::{HashOutTarget, RichField, NUM_HASH_OUT_ELTS},
@@ -15,7 +14,6 @@ use std::marker::PhantomData;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::keyed_compress::key_compress_circuit;
-// use crate::circuits::params::HF;
 use crate::circuits::utils::{add_assign_hash_out_target, mul_hash_out_target};
 use crate::Result;
 use crate::error::CircuitError;

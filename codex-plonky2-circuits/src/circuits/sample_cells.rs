@@ -131,7 +131,7 @@ impl<
     /// samples and registers the public input
     pub fn sample_slot_circuit_with_public_input(
         &self,
-        builder: &mut CircuitBuilder::<F, D>,
+        builder: &mut CircuitBuilder<F, D>,
     ) -> Result<SampleTargets> {
         let targets = self.sample_slot_circuit(builder)?;
         let mut pub_targets = vec![];
@@ -246,7 +246,7 @@ impl<
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
             for i in 0..ctr.elements.len() {
-                if(i==0){
+                if i==0 {
                     ctr.elements[i] = ctr_target;
                 }else{
                     ctr.elements[i] = zero.clone();
@@ -321,7 +321,7 @@ impl<
     }
 
     /// calculate the cell index = H( entropy | slotRoot | counter ) `mod` nCells
-    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder::<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Result<Vec<BoolTarget>> {
+    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Result<Vec<BoolTarget>> {
         let mut hash_inputs:Vec<Target>= Vec::new();
         hash_inputs.extend_from_slice(&entropy.elements);
         hash_inputs.extend_from_slice(&slot_root.elements);
