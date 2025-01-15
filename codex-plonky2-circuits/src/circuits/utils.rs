@@ -1,5 +1,6 @@
 use std::{fs, io};
 use std::path::Path;
+use itertools::Itertools;
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2_field::extension::Extendable;
@@ -134,4 +135,15 @@ pub fn vec_to_array<const N: usize, T>(vec: Vec<T>) -> Result<[T; N]> {
         N,
         v.len()
     )))
+}
+
+/// Computes `if b { v0 } else { v1 }`.
+pub fn select_vec<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+>(builder: &mut CircuitBuilder<F, D>, b: BoolTarget, v0: &[Target], v1: &[Target]) -> Vec<Target> {
+    v0.iter()
+        .zip_eq(v1)
+        .map(|(t0, t1)| builder.select(b, *t0, *t1))
+        .collect()
 }
