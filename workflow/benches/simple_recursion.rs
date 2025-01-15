@@ -13,16 +13,16 @@ use proof_input::gen_input::{build_circuit, prove_circuit};
 
 /// Benchmark for building, proving, and verifying the Plonky2 recursion circuit.
 /// Simple recursion approach - verify N proofs in-circuit
-fn bench_simple_recursion(c: &mut Criterion) -> Result<()>{
-    let mut group = c.benchmark_group("Simple Recursion Benchmark");
+fn bench_simple_recursion<const N_INNER: usize>(c: &mut Criterion) -> Result<()>{
+    let mut group = c.benchmark_group(format!("Simple Recursion Benchmark for N ={}", N_INNER));
 
     // number of samples in each proof
-    let n_samples = 5;
+    let n_samples = 10;
     // params
     let mut circ_params = Params::default().circuit_params;
     circ_params.n_samples = n_samples;
     // number of inner proofs:
-    const N_INNER: usize = 4;
+    // const N_INNER: usize = 16;
 
     let (data, pw) = build_circuit(n_samples, 3)?;
     let proof = prove_circuit(&data, &pw)?;
@@ -99,10 +99,16 @@ fn bench_simple_recursion(c: &mut Criterion) -> Result<()>{
     Ok(())
 }
 
+fn bench_multiple_n(c: &mut Criterion){
+    bench_simple_recursion::<32>(c);
+    bench_simple_recursion::<64>(c);
+    bench_simple_recursion::<128>(c);
+}
+
 /// Criterion benchmark group
 criterion_group!{
     name = recursion;
     config = Criterion::default().sample_size(10);
-    targets = bench_simple_recursion
+    targets = bench_multiple_n
 }
 criterion_main!(recursion);

@@ -78,14 +78,14 @@ fn bench_node_recursion<const M: usize, const N: usize>(c: &mut Criterion) -> Re
     Ok(())
 }
 
-fn bench_tree_recursion(c: &mut Criterion) -> Result<()>{
-    let mut group = c.benchmark_group("bench tree recursion - approach 1");
+fn bench_tree_recursion<const M:usize, const N:usize, const DEPTH:usize, const TOTAL_INPUT:usize>(c: &mut Criterion) -> Result<()>{
+    let mut group = c.benchmark_group(format!("bench tree recursion - approach 1 for N={}",TOTAL_INPUT));
 
-    const M: usize = 1;
-    const N: usize = 2;
-    const DEPTH: usize = 3;
+    // const M: usize = 1;
+    // const N: usize = 2;
+    // const DEPTH: usize = 3;
 
-    const TOTAL_INPUT: usize = (N.pow(DEPTH as u32) - 1) / (N - 1);
+    // const TOTAL_INPUT: usize = T;
 
     // number of samples in each proof
     let n_samples = 5;
@@ -140,7 +140,22 @@ fn bench_tree_recursion_approach1(c: &mut Criterion){
     const M: usize = 1;
     const N: usize = 2;
     bench_node_recursion::<M,N>(c);
-    bench_tree_recursion(c);
+    // bench_tree_recursion(c);
+}
+
+fn bench_multiple_params(c: &mut Criterion){
+    const M: usize = 1;
+    const N: usize = 2;
+    const DEPTH1: usize = 2;
+    const TOTAL_INPUT1: usize = (N.pow(DEPTH1 as u32) - 1) / (N - 1);
+    const DEPTH2: usize = 3;
+    const TOTAL_INPUT2: usize = (N.pow(DEPTH2 as u32) - 1) / (N - 1);
+    const DEPTH3: usize = 4;
+    const TOTAL_INPUT3: usize = (N.pow(DEPTH3 as u32) - 1) / (N - 1);
+
+    bench_tree_recursion::<M,N,DEPTH1,TOTAL_INPUT1>(c);
+    bench_tree_recursion::<M,N,DEPTH2,TOTAL_INPUT2>(c);
+    bench_tree_recursion::<M,N,DEPTH3,TOTAL_INPUT3>(c);
 }
 
 
@@ -148,6 +163,6 @@ fn bench_tree_recursion_approach1(c: &mut Criterion){
 criterion_group!{
     name = recursion;
     config = Criterion::default().sample_size(10);
-    targets = bench_tree_recursion_approach1
+    targets = bench_multiple_params
 }
 criterion_main!(recursion);

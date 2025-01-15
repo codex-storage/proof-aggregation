@@ -16,7 +16,7 @@ use proof_input::params::Params;
 /// Benchmark for building, proving, and verifying the Plonky2 tree recursion circuit.
 fn bench_tree_recursion<const N: usize, const K: usize>(c: &mut Criterion) -> anyhow::Result<()>{
 
-    let mut group = c.benchmark_group("Tree Recursion - Approach 2 Benchmark");
+    let mut group = c.benchmark_group(format!("Tree Recursion - Approach 2 Benchmark for N={}",K));
 
     //------------ sampling inner circuit ----------------------
     // Circuit that does the sampling - default input
@@ -138,10 +138,98 @@ fn bench_tree_recursion<const N: usize, const K: usize>(c: &mut Criterion) -> an
     Ok(())
 }
 
+/// Benchmark for building, proving, and verifying the Plonky2 tree recursion circuit.
+fn bench_tree_recursion_node_only<const N: usize, const K: usize>(c: &mut Criterion) -> anyhow::Result<()>{
+
+    let mut group = c.benchmark_group(format!("Tree Recursion - Approach 2 Benchmark for N={}",K));
+
+    //------------ sampling inner circuit ----------------------
+    // Circuit that does the sampling - default input
+    let config = CircuitConfig::standard_recursion_config();
+    let mut sampling_builder = CircuitBuilder::<F, D>::new(config);
+    let mut params = Params::default();
+    let one_circ_input = gen_testing_circuit_input::<F,D>(&params.input_params);
+    let samp_circ = SampleCircuit::<F,D,HF>::new(params.circuit_params);
+    let inner_tar = samp_circ.sample_slot_circuit_with_public_input(&mut sampling_builder)?;
+    // get generate a sampling proof
+    let mut pw = PartialWitness::<F>::new();
+    samp_circ.sample_slot_assign_witness(&mut pw,&inner_tar,&one_circ_input);
+    let inner_data = sampling_builder.build::<C>();
+    let inner_proof = inner_data.prove(pw.clone())?;
+
+    // ------------------- leaf --------------------
+    // leaf circuit that verifies the sampling proof
+    let inner_circ = SamplingRecursion::<F,D,HF,C>::new(Params::default().circuit_params);
+    let leaf_circuit = LeafCircuit::<F,D,_>::new(inner_circ);
+
+    let leaf_in = LeafInput{
+        inner_proof,
+        verifier_data: inner_data.verifier_data(),
+    };
+    let config = CircuitConfig::standard_recursion_config();
+    let mut leaf_builder = CircuitBuilder::<F, D>::new(config);
+    let leaf_targets = leaf_circuit.build::<C,HF>(&mut leaf_builder)?;
+    let leaf_circ_data =  leaf_builder.build::<C>();
+
+    let mut pw = PartialWitness::<F>::new();
+    leaf_circuit.assign_targets::<C,HF>(&mut pw, &leaf_targets, &leaf_in)?;
+    let leaf_proof = leaf_circ_data.prove(pw.clone())?;
+
+
+    // ------------- Node/tree circuit ------------------
+    // node circuit that verifies leafs or itself
+
+    let mut tree  = TreeRecursion::<F,D,C,N>::build::<_,HF>(leaf_circuit.clone())?;
+
+    // Building phase
+    group.bench_function("build tree circuit", |b| {
+        b.iter(|| {
+            let _tree  = TreeRecursion::<F,D,C,N>::build::<_,HF>(leaf_circuit.clone());
+        })
+    });
+
+
+    let leaf_proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..K)
+        .map(|_| {
+            leaf_proof.clone()
+        })
+        .collect::<Vec<_>>();
+
+    let tree_root_proof = tree.prove_tree(leaf_proofs.clone()).unwrap();
+
+    // Proving Phase
+    group.bench_function("prove tree circuit", |b| {
+        b.iter(|| {
+            let _tree_root_proof = tree.prove_tree(leaf_proofs.clone());
+        })
+    });
+
+    println!("tree circuit - Circuit size (degree bits): {:?}", tree.node.node_data.node_circuit_data.common.degree_bits());
+    println!("tree circuit - num of public input = {}", tree_root_proof.public_inputs.len());
+
+    assert!(
+        tree.verify_proof(tree_root_proof.clone(), N==K).is_ok(),
+        "proof verification failed"
+    );
+
+    // Verifying Phase
+    group.bench_function("verify tree circuit", |b| {
+        b.iter(|| {
+            tree.verify_proof(tree_root_proof.clone(), N==K).expect("verify fail");
+        })
+    });
+
+
+    group.finish();
+    Ok(())
+}
+
 fn bench_tree_recursion_approach2(c: &mut Criterion){
     const N: usize = 2; // number of child nodes
-    const K: usize = 2; // number of proofs to be aggregated in the tree
-    bench_tree_recursion::<N,K>(c);
+    const K: usize = 4; // number of proofs to be aggregated in the tree
+    bench_tree_recursion_node_only::<N,4>(c);
+    bench_tree_recursion_node_only::<N,8>(c);
+    bench_tree_recursion_node_only::<N,16>(c);
 }
 
 /// Criterion benchmark group

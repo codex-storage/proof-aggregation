@@ -10,13 +10,20 @@ use proof_input::params::Params;
 /// Benchmark for building, proving, and verifying the Plonky2 tree recursion circuit.
 fn bench_cyclic_recursion<const N: usize>(c: &mut Criterion) -> anyhow::Result<()>{
 
-    let mut group = c.benchmark_group("Cyclic Recursion Benchmark");
+    let mut group = c.benchmark_group(format!("Cyclic Recursion Benchmark for N={}",N));
+
+    // number of samples in each proof
+    let n_samples = 10;
 
     let mut params = Params::default();
-    let inner_sampling_circuit = SamplingRecursion::<F,D,HF,C>::new(params.circuit_params);
+    let mut input_params = params.input_params;
+    input_params.n_samples = n_samples;
+    let mut circuit_params = params.circuit_params;
+    circuit_params.n_samples = n_samples;
+    let inner_sampling_circuit = SamplingRecursion::<F,D,HF,C>::new(circuit_params);
     let mut circ_inputs = vec![];
     for _i in 0..N {
-        circ_inputs.push(gen_testing_circuit_input::<F, D>(&params.input_params));
+        circ_inputs.push(gen_testing_circuit_input::<F, D>(&input_params));
     }
 
     let mut cyclic_circ = CyclicCircuit::<F,D,_,C>::build_circuit::<HF>(inner_sampling_circuit.clone())?;
@@ -28,6 +35,7 @@ fn bench_cyclic_recursion<const N: usize>(c: &mut Criterion) -> anyhow::Result<(
 
         })
     });
+    println!("cyclic circuit size = {:?}", cyclic_circ.cyclic_circuit_data.common.degree_bits());
 
     let proof = cyclic_circ.prove_n_layers(circ_inputs.clone())?;
 
@@ -37,9 +45,8 @@ fn bench_cyclic_recursion<const N: usize>(c: &mut Criterion) -> anyhow::Result<(
             let _proof = cyclic_circ.prove_n_layers(circ_inputs.clone());
         })
     });
-
+    println!("Proof size: {} bytes", proof.to_bytes().len());
     println!("num of pi = {}", proof.public_inputs.len());
-    println!("pub input: {:?}", proof.public_inputs);
 
     // Verifying Phase
     group.bench_function("verify cyclic circuit proof", |b| {
@@ -59,7 +66,9 @@ fn bench_cyclic_recursion<const N: usize>(c: &mut Criterion) -> anyhow::Result<(
 
 fn bench_recursion(c: &mut Criterion){
     const N: usize = 2; //  number of proofs to be aggregated
-    bench_cyclic_recursion::<N>(c);
+    bench_cyclic_recursion::<4>(c);
+    bench_cyclic_recursion::<8>(c);
+    bench_cyclic_recursion::<16>(c);
 }
 
 /// Criterion benchmark group
