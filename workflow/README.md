@@ -65,10 +65,10 @@ export NCELLS=512         # Number of cells in this slot
 Alternatively, for testing you can just use the default parameters as follows:
 
 ```rust
-use proof_input::params::TestParams;
+use proof_input::params::Params;
 
 fn main() {
-    let params = TestParams::<F,D>::default();
+    let params = Params::default();
 }
 ```
 #### Step 2: Run the Script
