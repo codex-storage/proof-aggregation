@@ -13,7 +13,7 @@ mod tests {
     use crate::params::{F, D, C, HF};
     use codex_plonky2_circuits::recursion::circuits::sampling_inner_circuit::SamplingRecursion;
     use codex_plonky2_circuits::recursion::circuits::inner_circuit::InnerCircuit;
-    use codex_plonky2_circuits::recursion::tree2::leaf_circuit::{LeafCircuit, LeafInput};
+    use codex_plonky2_circuits::recursion::circuits::leaf_circuit::{LeafCircuit, LeafInput};
     // use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use crate::gen_input::gen_testing_circuit_input;
     use crate::params::Params;
@@ -40,15 +40,15 @@ mod tests {
         let inner_d = builder.build::<C>();
         let inner_prf = inner_d.prove(pw)?;
 
-        let leaf_in = LeafInput{
-            inner_proof:inner_prf,
+        let leaf_in = LeafInput::<F,D,C,M>{
+            inner_proof:[inner_prf; M],
             verifier_data: inner_d.verifier_data(),
         };
         let config2 = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config2);
 
         let inner_circ = SamplingRecursion::<F,D,HF,C>::new(Params::default().circuit_params);
-        let leaf_circuit = LeafCircuit::<F,D,_>::new(inner_circ);
+        let leaf_circuit = LeafCircuit::<F,D,_, M>::new(inner_circ);
 
         let s = Instant::now();
         let leaf_tar = leaf_circuit.build::<C,HF>(&mut builder)?;
@@ -73,6 +73,7 @@ mod tests {
 
     #[test]
     fn test_node_circuit_approach2() -> anyhow::Result<()> {
+        const M: usize = 1;
         const N: usize = 2; // binary tree
 
         let config = CircuitConfig::standard_recursion_config();
@@ -93,10 +94,10 @@ mod tests {
         // ------------------- leaf --------------------
         // leaf circuit that verifies the sampling proof
         let inner_circ = SamplingRecursion::<F,D,HF,C>::new(Params::default().circuit_params);
-        let leaf_circuit = LeafCircuit::<F,D,_>::new(inner_circ);
+        let leaf_circuit = LeafCircuit::<F,D,_, M>::new(inner_circ);
 
-        let leaf_in = LeafInput{
-            inner_proof,
+        let leaf_in = LeafInput::<F,D,C, M>{
+            inner_proof:[inner_proof; M],
             verifier_data: inner_data.verifier_data(),
         };
         let config = CircuitConfig::standard_recursion_config();
@@ -126,7 +127,7 @@ mod tests {
         // node circuit that verifies leafs or itself
         // build
         let s = Instant::now();
-        let mut node = NodeCircuit::<F,D,C,N>::build_circuit::<_,HF>(leaf_circuit)?;
+        let mut node = NodeCircuit::<F,D,C,N>::build_circuit::<_,HF,M>(leaf_circuit)?;
         println!("build = {:?}", s.elapsed());
         println!("leaf circuit size = {:?}", node.node_data.node_circuit_data.common.degree_bits());
 
@@ -204,6 +205,7 @@ mod tests {
 
     #[test]
     fn test_tree_recursion_approach2() -> anyhow::Result<()> {
+        const M: usize = 1;
         const N: usize = 2; // binary tree
         const K: usize = 4; // number of leaves/slots sampled - should be power of 2
 
@@ -226,10 +228,10 @@ mod tests {
         // ------------------- leaf --------------------
         // leaf circuit that verifies the sampling proof
         let inner_circ = SamplingRecursion::<F,D,HF,C>::new(Params::default().circuit_params);
-        let leaf_circuit = LeafCircuit::<F,D,_>::new(inner_circ);
+        let leaf_circuit = LeafCircuit::<F,D,_, M>::new(inner_circ);
 
-        let leaf_in = LeafInput{
-            inner_proof,
+        let leaf_in = LeafInput::<F,D,C, M>{
+            inner_proof:[inner_proof; M],
             verifier_data: inner_data.verifier_data(),
         };
         let config = CircuitConfig::standard_recursion_config();
@@ -259,7 +261,7 @@ mod tests {
         // node circuit that verifies leafs or itself
         // build
         let s = Instant::now();
-        let mut tree  = TreeRecursion::<F,D,C,N>::build::<_,HF>(leaf_circuit)?;
+        let mut tree  = TreeRecursion::<F,D,C,N>::build::<_,HF, M>(leaf_circuit)?;
         println!("build = {:?}", s.elapsed());
         println!("node circuit degree bits = {:?}", tree.node.node_data.node_circuit_data.common.degree_bits());
 
@@ -295,7 +297,6 @@ mod tests {
     fn get_expected_tree_root_pi_hash<const N:usize>(leaf_proofs: Vec<ProofWithPublicInputs<F, C, D>>)
     -> Vec<F>{
         // Step 1: Extract relevant public inputs from each leaf proof
-        // Assuming the first public input is the hash used for tree hashing
         let mut current_hashes: Vec<HashOut<F>> = leaf_proofs
             .iter()
             .map(|p|HashOut::from_vec(p.public_inputs.clone())) // Adjust index if different
