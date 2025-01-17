@@ -9,7 +9,7 @@ use plonky2_field::extension::Extendable;
 use crate::recursion::tree2::dummy_gen::DummyProofGen;
 use crate::{error::CircuitError, Result};
 use crate::circuits::utils::vec_to_array;
-use crate::recursion::tree2::leaf_circuit::LeafCircuit;
+use crate::recursion::circuits::leaf_circuit::LeafCircuit;
 use crate::recursion::tree2::node_circuit::NodeCircuit;
 
 /// the tree recursion struct simplifies the process
@@ -40,12 +40,13 @@ impl<
     pub fn build<
         I: InnerCircuit<F, D>,
         H: AlgebraicHasher<F>,
+        const M: usize,
     >(
-        leaf_circuit: LeafCircuit<F, D, I>
+        leaf_circuit: LeafCircuit<F, D, I, M>
     ) -> Result<Self>{
         Ok(
             Self{
-                node: NodeCircuit::<F, D, C, N>::build_circuit::<I,H>(leaf_circuit)?,
+                node: NodeCircuit::<F, D, C, N>::build_circuit::<I,H, M>(leaf_circuit)?,
             }
         )
     }

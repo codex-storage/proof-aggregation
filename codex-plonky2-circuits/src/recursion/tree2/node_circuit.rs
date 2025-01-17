@@ -12,7 +12,7 @@ use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use plonky2_field::extension::Extendable;
 use crate::circuits::utils::{select_hash, select_vec, vec_to_array};
 use crate::{error::CircuitError, Result};
-use crate::recursion::tree2::leaf_circuit::LeafCircuit;
+use crate::recursion::circuits::leaf_circuit::LeafCircuit;
 
 /// Node circuit struct
 /// contains necessary data
@@ -67,9 +67,10 @@ impl<
     /// TODO: make generic recursion config
     pub fn build_circuit<
         I: InnerCircuit<F, D>,
-        H: AlgebraicHasher<F>
+        H: AlgebraicHasher<F>,
+        const M: usize,
     >(
-        leaf_circuit:LeafCircuit<F, D, I>
+        leaf_circuit: LeafCircuit<F, D, I, M>
     ) -> Result<NodeCircuit<F, D, C, N>>{
 
         // builder with standard recursion config
