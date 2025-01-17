@@ -81,12 +81,6 @@ fn bench_node_recursion<const M: usize, const N: usize>(c: &mut Criterion) -> Re
 fn bench_tree_recursion<const M:usize, const N:usize, const DEPTH:usize, const TOTAL_INPUT:usize>(c: &mut Criterion) -> Result<()>{
     let mut group = c.benchmark_group(format!("bench tree recursion - approach 1 for N={}",TOTAL_INPUT));
 
-    // const M: usize = 1;
-    // const N: usize = 2;
-    // const DEPTH: usize = 3;
-
-    // const TOTAL_INPUT: usize = T;
-
     // number of samples in each proof
     let n_samples = 5;
     // params
@@ -140,7 +134,6 @@ fn bench_tree_recursion_approach1(c: &mut Criterion){
     const M: usize = 1;
     const N: usize = 2;
     bench_node_recursion::<M,N>(c);
-    // bench_tree_recursion(c);
 }
 
 fn bench_multiple_params(c: &mut Criterion){

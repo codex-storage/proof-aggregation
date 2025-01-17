@@ -19,8 +19,6 @@ fn bench_recursion<const N_INNER: usize>(c: &mut Criterion) -> Result<()>{
     // params
     let mut circ_params = Params::default().circuit_params;
     circ_params.n_samples = n_samples;
-    // number of inner proofs:
-    // const N_INNER: usize = 16;
 
     let (data, pw) = build_circuit(n_samples, 3)?;
     let proof = prove_circuit(&data, &pw)?;
