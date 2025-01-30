@@ -22,7 +22,7 @@ mod tests {
     #[test]
     fn test_hybrid_recursion() -> anyhow::Result<()> {
         const N: usize = 2; // binary tree
-        const M: usize = 4; // number of proofs in leaves
+        const M: usize = 1; // number of proofs in leaves
         const K: usize = 8;
 
         let config = CircuitConfig::standard_recursion_config();

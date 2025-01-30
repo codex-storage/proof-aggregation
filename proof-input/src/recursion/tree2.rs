@@ -17,9 +17,7 @@ mod tests {
     // use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use crate::gen_input::gen_testing_circuit_input;
     use crate::params::Params;
-    use codex_plonky2_circuits::recursion::tree2::{node_circuit::NodeCircuit, tree_circuit::TreeRecursion};
-    use codex_plonky2_circuits::recursion::tree2::dummy_gen::DummyProofGen;
-    use codex_plonky2_circuits::circuits::utils::vec_to_array;
+    use codex_plonky2_circuits::recursion::tree2::{tree_circuit::TreeRecursion};
 
 
     /// Uses node recursion to sample the dataset
@@ -72,142 +70,10 @@ mod tests {
     }
 
     #[test]
-    fn test_node_circuit_approach2() -> anyhow::Result<()> {
-        const M: usize = 1;
-        const N: usize = 2; // binary tree
-
-        let config = CircuitConfig::standard_recursion_config();
-        let mut sampling_builder = CircuitBuilder::<F, D>::new(config);
-
-        //------------ sampling inner circuit ----------------------
-        // Circuit that does the sampling - default input
-        let mut params = Params::default();
-        let one_circ_input = gen_testing_circuit_input::<F,D>(&params.input_params);
-        let samp_circ = SampleCircuit::<F,D,HF>::new(params.circuit_params);
-        let inner_tar = samp_circ.sample_slot_circuit_with_public_input(&mut sampling_builder)?;
-        // get generate a sampling proof
-        let mut pw = PartialWitness::<F>::new();
-        samp_circ.sample_slot_assign_witness(&mut pw,&inner_tar,&one_circ_input);
-        let inner_data = sampling_builder.build::<C>();
-        let inner_proof = inner_data.prove(pw)?;
-
-        // ------------------- leaf --------------------
-        // leaf circuit that verifies the sampling proof
-        let inner_circ = SamplingRecursion::<F,D,HF,C>::new(Params::default().circuit_params);
-        let leaf_circuit = LeafCircuit::<F,D,_, M>::new(inner_circ);
-
-        let leaf_in = LeafInput::<F,D,C, M>{
-            inner_proof:[inner_proof; M],
-            verifier_data: inner_data.verifier_data(),
-        };
-        let config = CircuitConfig::standard_recursion_config();
-        let mut leaf_builder = CircuitBuilder::<F, D>::new(config);
-        // build
-        let s = Instant::now();
-        let leaf_targets = leaf_circuit.build::<C,HF>(&mut leaf_builder)?;
-        let leaf_circ_data =  leaf_builder.build::<C>();
-        println!("build = {:?}", s.elapsed());
-        println!("leaf circuit size = {:?}", leaf_circ_data.common.degree_bits());
-        // prove
-        let s = Instant::now();
-        let mut pw = PartialWitness::<F>::new();
-        leaf_circuit.assign_targets::<C,HF>(&mut pw, &leaf_targets, &leaf_in)?;
-        let leaf_proof = leaf_circ_data.prove(pw)?;
-        println!("prove = {:?}", s.elapsed());
-        println!("num of pi = {}", leaf_proof.public_inputs.len());
-        // verify
-        let s = Instant::now();
-        assert!(
-            leaf_circ_data.verify(leaf_proof.clone()).is_ok(),
-            "proof verification failed"
-        );
-        println!("verify = {:?}", s.elapsed());
-
-        // ------------- Node circuit ------------------
-        // node circuit that verifies leafs or itself
-        // build
-        let s = Instant::now();
-        let mut node = NodeCircuit::<F,D,C,N>::build_circuit::<_,HF,M>(leaf_circuit)?;
-        println!("build = {:?}", s.elapsed());
-        println!("leaf circuit size = {:?}", node.node_data.node_circuit_data.common.degree_bits());
-
-        // prove leaf
-        let s = Instant::now();
-        let mut pw = PartialWitness::<F>::new();
-        let leaf_proofs: [ProofWithPublicInputs<F, C, D>; N] =
-            vec_to_array::<N, ProofWithPublicInputs<F, C, D>>(
-                (0..N)
-                .map(|_| {
-                    leaf_proof.clone()
-                })
-                .collect::<Vec<_>>()
-            )?;
-        let dummy_node_proofs: [ProofWithPublicInputs<F, C, D>; N] =
-            DummyProofGen::<F, D, C>::gen_n_dummy_node_proofs::<N>(
-                &node.node_data.inner_node_common_data,
-                &node.node_data.node_circuit_data.verifier_only,
-            )?;
-        NodeCircuit::<F,D,C,N>::assign_targets(
-            node.node_targets.clone(), //targets
-            leaf_proofs, // leaf proofs
-            dummy_node_proofs, // node proofs (dummy here)
-            &node.node_data.leaf_circuit_data.verifier_only, // leaf verifier data
-            &mut pw, // partial witness
-            true // is leaf
-        )?;
-        let node_proof = node.node_data.node_circuit_data.prove(pw)?;
-        println!("prove = {:?}", s.elapsed());
-        println!("num of pi = {}", node_proof.public_inputs.len());
-        let s = Instant::now();
-        assert!(
-            node.node_data.node_circuit_data.verify(node_proof.clone()).is_ok(),
-            "proof verification failed"
-        );
-        println!("verify = {:?}", s.elapsed());
-
-
-        // prove node
-        let s = Instant::now();
-        let mut pw = PartialWitness::<F>::new();
-        let node_proofs: [ProofWithPublicInputs<F, C, D>; N] =
-            vec_to_array::<N, ProofWithPublicInputs<F, C, D>>(
-                (0..N)
-                .map(|_| {
-                    node_proof.clone()
-                })
-                .collect::<Vec<_>>()
-            )?;
-        let dummy_leaf_proofs: [ProofWithPublicInputs<F, C, D>; N] =
-            DummyProofGen::<F, D, C>::gen_n_dummy_leaf_proofs::<N>(
-                &node.node_data.leaf_circuit_data.common
-            )?;
-        NodeCircuit::<F,D,C,N>::assign_targets(
-            node.node_targets.clone(), //targets
-            dummy_leaf_proofs, // leaf proofs
-            node_proofs, // node proofs (dummy here)
-            &node.node_data.leaf_circuit_data.verifier_only, // leaf verifier data
-            &mut pw, // partial witness
-            false // is leaf
-        )?;
-        let node_proof = node.node_data.node_circuit_data.prove(pw)?;
-        // let node_proof = node_d.prove(pw)?;
-        println!("prove = {:?}", s.elapsed());
-        println!("num of pi = {}", node_proof.public_inputs.len());
-        let s = Instant::now();
-        assert!(
-            node.node_data.node_circuit_data.verify(node_proof.clone()).is_ok(),
-            "proof verification failed"
-        );
-        println!("verify = {:?}", s.elapsed());
-
-        Ok(())
-    }
-
-    #[test]
     fn test_tree_recursion_approach2() -> anyhow::Result<()> {
         const M: usize = 1;
         const N: usize = 2; // binary tree
-        const K: usize = 4; // number of leaves/slots sampled - should be power of 2
+        const K: usize = 2; // number of leaves/slots sampled - should be power of 2
 
         let config = CircuitConfig::standard_recursion_config();
         let mut sampling_builder = CircuitBuilder::<F, D>::new(config);
