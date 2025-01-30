@@ -73,3 +73,7 @@ harness = false
 [[bench]]
 name = "hybrid_recursion"
 harness = false
+
+[[bench]]
+name = "uniform_recursion"
+harness = false
