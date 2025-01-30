@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 use plonky2::plonk::circuit_data::{CommonCircuitData, VerifierOnlyCircuitData};
-use plonky2::plonk::proof::ProofWithPublicInputs;
-use plonky2::recursion::dummy_circuit::{cyclic_base_proof, dummy_circuit, dummy_proof};
+use plonky2::plonk::proof::{ProofWithPublicInputs};
+use plonky2::recursion::dummy_circuit::{dummy_proof};
+use crate::recursion::utils::conditional_verifier::dummy_circuit;
 use hashbrown::HashMap;
-use plonky2::hash::hash_types::RichField;
+use plonky2::hash::hash_types::{ RichField};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
@@ -43,7 +44,18 @@ impl<
         node_common: &CommonCircuitData<F, D>,
         node_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> ProofWithPublicInputs<F, C, D> {
-        cyclic_base_proof(node_common, node_verifier_only_data, HashMap::new())
+        Self::recursion_base_proof(node_common, HashMap::new())
+    }
+
+    fn recursion_base_proof(
+        common_data: &CommonCircuitData<F, D>,
+        mut nonzero_public_inputs: HashMap<usize, F>
+    ) -> ProofWithPublicInputs<F, C, D>{
+        dummy_proof::<F, C, D>(
+            &dummy_circuit::<F, C, D>(common_data),
+            nonzero_public_inputs,
+        )
+            .unwrap()
     }
 
     /// Generates an array of `N` dummy leaf proofs.
@@ -65,6 +77,3 @@ impl<
         vec_to_array::<N, ProofWithPublicInputs<F, C, D>>(n_dummy_vec)
     }
 }
-
-
-

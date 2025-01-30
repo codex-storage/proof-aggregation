@@ -2,7 +2,6 @@
 // and run the inner circuit -> resulting in one proof that again can be fed
 // into another cyclic circle.
 
-use hashbrown::HashMap;
 use plonky2::hash::hash_types::{HashOutTarget, RichField};
 use plonky2::iop::target::{BoolTarget};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
@@ -10,14 +9,14 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
-use plonky2::recursion::dummy_circuit::cyclic_base_proof;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use plonky2::gates::noop::NoopGate;
-use plonky2::recursion::cyclic_recursion::check_cyclic_proof_verifier_data;
 use plonky2_field::extension::Extendable;
 use crate::circuits::utils::select_hash;
 use crate::error::CircuitError;
+use crate::recursion::utils::conditional_verifier::{dummy_circuit};
+use crate::recursion::utils::dummy_gen::DummyProofGen;
 use crate::Result;
 
 /// cyclic circuit struct
@@ -80,7 +79,9 @@ impl<
         // the hash of the public input
         let pub_input_hash = builder.add_virtual_hash_public_input();
         // verifier data for inner proofs
-        let verifier_data_target = builder.add_verifier_data_public_inputs();
+        // TODO: make verifier data public
+        // let verifier_data_target = builder.add_verifier_data_public_inputs();
+        let verifier_data_target = builder.add_virtual_verifier_data(builder.config.fri_config.cap_height);
         // common data should have same num of public input as inner proofs
         common_data.num_public_inputs = builder.num_public_inputs();
 
@@ -107,11 +108,7 @@ impl<
         builder.connect_hashes(pub_input_hash,outer_pi_hash);
 
         // verify proof in-circuit
-        builder.conditionally_verify_cyclic_proof_or_dummy::<C>(
-            condition,
-            &inner_cyclic_proof_with_pis,
-            &common_data,
-        ).map_err(|e| CircuitError::ConditionalVerificationError(e.to_string()))?;
+        builder.verify_proof::<C>(&inner_cyclic_proof_with_pis, &verifier_data_target, &common_data);
 
         // build the cyclic circuit
         let cyclic_circuit_data = builder.build::<C>();
@@ -159,14 +156,17 @@ impl<
                 )?;
             pw.set_proof_with_pis_target::<C, D>(
                 &cyc_targets.inner_cyclic_proof_with_pis,
-                &cyclic_base_proof(
+                &DummyProofGen::<F, D, C>::get_dummy_node_proof(
                     common_data,
                     &circ_data.verifier_only,
-                    HashMap::new(),
                 ),
             ).map_err(|e|
                           CircuitError::ProofTargetAssignmentError("cyclic proof".to_string(),e.to_string()),
             )?;
+            // assign verifier data
+            let dummy_ver = dummy_circuit::<F, C, D>(common_data).verifier_only;
+            pw.set_verifier_data_target(&cyc_targets.verifier_data, &dummy_ver)
+                .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
         }else{ // else add last proof
             pw.set_bool_target(cyc_targets.condition, true)
                 .map_err(|e|
@@ -182,22 +182,14 @@ impl<
                 .map_err(|e|
                              CircuitError::ProofTargetAssignmentError("cyclic proof".to_string(),e.to_string()),
                 )?;
+            // assign verifier data
+            pw.set_verifier_data_target(&cyc_targets.verifier_data, &circ_data.verifier_only)
+                .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
         }
 
-        // assign verifier data
-        pw.set_verifier_data_target(&cyc_targets.verifier_data, &circ_data.verifier_only)
-            .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
         // prove
         let proof = circ_data.prove(pw).map_err(
             |e| CircuitError::InvalidProofError(e.to_string())
-        )?;
-        // check that the correct verifier data is consistent
-        check_cyclic_proof_verifier_data(
-            &proof,
-            &circ_data.verifier_only,
-            &circ_data.common,
-        ).map_err(
-            |e| CircuitError::RecursiveProofVerifierDataCheckError(e.to_string())
         )?;
 
         self.latest_proof = Some(proof.clone());
@@ -232,16 +224,7 @@ impl<
             .ok_or_else(|| CircuitError::OptionError("cyclic proof".to_string()))?
             .clone();
 
-        // check that the correct verifier data is consistent
-        //TODO: test if it works with only one layer proof
-        check_cyclic_proof_verifier_data(
-            &proof,
-            &self.cyclic_circuit_data.verifier_only,
-            &self.cyclic_circuit_data.common,
-        ).map_err(
-            |e| CircuitError::RecursiveProofVerifierDataCheckError(e.to_string())
-        )?;
-
+        // TODO: check that the correct verifier data is consistent
 
         self.cyclic_circuit_data.verify(proof).map_err(
             |e| CircuitError::InvalidProofError(e.to_string())

@@ -10,7 +10,7 @@ use plonky2_field::extension::Extendable;
 use crate::{error::CircuitError, Result};
 use crate::circuits::utils::vec_to_array;
 use crate::recursion::circuits::leaf_circuit::{LeafCircuit, LeafInput};
-use crate::recursion::hybrid::node_circuit::NodeCircuit;
+use crate::recursion::hybrid::node_circuit::{NodeCircuit, NodeCircuitTargets};
 
 /// Hybrid tree recursion - combines simple and tree recursion
 /// - N: number of leaf proofs to verify in the node circuit
@@ -55,11 +55,12 @@ impl<
         // process leaves
         let (leaf_proofs, leaf_data) = self.get_leaf_proofs::<C,H>(
             proofs_with_pi,
-            inner_verifier_data
+            inner_verifier_data,
         )?;
         
         // process nodes
-        let (root_proof, last_verifier_data) = self.prove::<C,H>(&leaf_proofs,leaf_data.verifier_data())?;
+        let (root_proof, last_verifier_data) =
+            self.prove::<C,H>(&leaf_proofs,leaf_data.verifier_data(), None, None, 0)?;
 
         Ok((root_proof, last_verifier_data))
     }
@@ -80,6 +81,7 @@ impl<
 
         let leaf_targets = self.leaf.build::<C,H>(&mut builder)?;
         let leaf_data = builder.build::<C>();
+        println!("leaf circuit size = {:?}", leaf_data.common.degree_bits());
 
         let mut leaf_proofs = vec![];
         
@@ -107,6 +109,9 @@ impl<
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
         verifier_data: VerifierCircuitData<F, C, D>,
+        node_target_options: Option<NodeCircuitTargets<D, N>>,
+        node_data_option: Option<CircuitData<F, C, D>>,
+        layer: usize,
     ) -> Result<(ProofWithPublicInputs<F, C, D>, VerifierCircuitData<F, C, D>)> where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
     {
@@ -117,10 +122,15 @@ impl<
 
         let mut new_proofs = vec![];
 
-        let node_config = CircuitConfig::standard_recursion_config();
-        let mut node_builder = CircuitBuilder::<F, D>::new(node_config);
-        let node_targets = NodeCircuit::<F,D,C,N>::build_circuit::<H>(&mut node_builder, &verifier_data.common)?;
-        let node_data = node_builder.build::<C>();
+        let (node_data, node_targets) = if layer<2 {
+            let node_config = CircuitConfig::standard_recursion_config();
+            let mut node_builder = CircuitBuilder::<F, D>::new(node_config);
+            let targets = NodeCircuit::<F, D, C, N>::build_circuit::<H>(&mut node_builder, &verifier_data.common)?;
+            let data = node_builder.build::<C>();
+            (data, targets)
+        }else{
+            (node_data_option.unwrap(), node_target_options.unwrap())
+        };
 
         for chunk in proofs_with_pi.chunks(N) {
 
@@ -135,7 +145,7 @@ impl<
             new_proofs.push(proof);
         }
 
-        self.prove::<C,H>(&new_proofs, node_data.verifier_data())
+        self.prove::<C,H>(&new_proofs, node_data.verifier_data(), Some(node_targets),Some(node_data), layer+1)
     }
 
 }

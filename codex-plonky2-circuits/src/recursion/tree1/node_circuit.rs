@@ -5,14 +5,14 @@ use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
-use plonky2::recursion::dummy_circuit::cyclic_base_proof;
-use hashbrown::HashMap;
 use plonky2::gates::noop::NoopGate;
 use plonky2::iop::target::BoolTarget;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::utils::{select_hash, vec_to_array};
 use crate::{error::CircuitError, Result};
 use crate::recursion::circuits::inner_circuit::InnerCircuit;
+use crate::recursion::utils::conditional_verifier::dummy_circuit;
+use crate::recursion::utils::dummy_gen::DummyProofGen;
 
 /// Node circuit struct
 /// contains necessary data
@@ -84,7 +84,9 @@ impl<
         let mut common_data = Self::common_data_for_node()?;
 
         let pub_input_hash = builder.add_virtual_hash_public_input();
-        let verifier_data_target = builder.add_verifier_data_public_inputs();
+        // TODO: make verifier data public
+        // let verifier_data_target = builder.add_verifier_data_public_inputs();
+        let verifier_data_target = builder.add_virtual_verifier_data(builder.config.fri_config.cap_height);
         common_data.num_public_inputs = builder.num_public_inputs();
 
         // condition
@@ -113,8 +115,6 @@ impl<
             outer_pis.push( I::get_pub_input_targets(&inner_t[i]));
         }
         // hash all the public input -> generate one HashOut at the end
-        // this is not an optimal way to do it, verification might be ugly if M > 1
-        // TODO: optimize this
         let mut outer_pi_hashes = vec![];
         for i in 0..M {
             let hash_res = builder.hash_n_to_hash_no_pad::<H>(outer_pis[i].clone());
@@ -137,11 +137,8 @@ impl<
 
         // verify all N proofs in-circuit
         for i in 0..N {
-            builder.conditionally_verify_cyclic_proof_or_dummy::<C>(
-                condition,
-                &inner_cyclic_proof_with_pis[i],
-                &common_data,
-            ).map_err(|e| CircuitError::ConditionalVerificationError(e.to_string()))?;
+            builder.verify_proof::<C>(&inner_cyclic_proof_with_pis[i], &verifier_data_target, &common_data);
+
         }
 
         // build the cyclic circuit
@@ -188,13 +185,16 @@ impl<
             for i in 0..N {
                 pw.set_proof_with_pis_target::<C, D>(
                     &cyc_targets.inner_proofs_with_pis[i],
-                    &cyclic_base_proof(
+                    &DummyProofGen::<F, D, C>::get_dummy_node_proof(
                         common_data,
                         &circ_data.verifier_only,
-                        HashMap::new(),
                     ),
                 ).map_err(|e| CircuitError::ProofTargetAssignmentError("inner proofs".to_string(),e.to_string()))?;
             }
+            // assign verifier data
+            let dummy_ver = dummy_circuit::<F, C, D>(common_data).verifier_only;
+            pw.set_verifier_data_target(&cyc_targets.verifier_data, &dummy_ver)
+                .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
         }else{
             pw.set_bool_target(cyc_targets.condition, true)
                 .map_err(|e| CircuitError::BoolTargetAssignmentError("condition".to_string(),e.to_string()))?;
@@ -204,10 +204,10 @@ impl<
                 pw.set_proof_with_pis_target(&cyc_targets.inner_proofs_with_pis[i], &proofs[i])
                     .map_err(|e| CircuitError::ProofTargetAssignmentError("inner proofs".to_string(),e.to_string()))?;
             }
+            // assign verifier data
+            pw.set_verifier_data_target(&cyc_targets.verifier_data, &circ_data.verifier_only)
+                .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
         }
-
-        pw.set_verifier_data_target(&cyc_targets.verifier_data, &circ_data.verifier_only)
-            .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
 
         Ok(())
     }
@@ -249,7 +249,7 @@ impl<
             let proof = builder.add_virtual_proof_with_pis(&data.common);
             builder.verify_proof::<C>(&proof, &verifier_data, &data.common);
         }
-        // pad. TODO: optimize this padding to only needed number of gates
+        // pad - padding depends on the inner circuit size
         while builder.num_gates() < 1 << 13 {
             builder.add_gate(NoopGate, vec![]);
         }

@@ -141,7 +141,7 @@ impl<
             <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
     {
         let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let mut builder = CircuitBuilder::<F, D>::new(config.clone());
 
         self.build::<C,H>(&mut builder)?;
 

@@ -1,12 +1,11 @@
 use plonky2::hash::hash_types::RichField;
-use plonky2::iop::witness::PartialWitness;
+use plonky2::iop::witness::{PartialWitness};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::recursion::circuits::inner_circuit::InnerCircuit;
-use plonky2::recursion::cyclic_recursion::check_cyclic_proof_verifier_data;
 use plonky2_field::extension::Extendable;
-use crate::recursion::tree2::dummy_gen::DummyProofGen;
+use crate::recursion::utils::dummy_gen::DummyProofGen;
 use crate::{error::CircuitError, Result};
 use crate::circuits::utils::vec_to_array;
 use crate::recursion::circuits::leaf_circuit::LeafCircuit;
@@ -67,13 +66,13 @@ impl<
             leaf_proofs,
             node_proofs,
             &self.node.node_data.leaf_circuit_data.verifier_only,
+            &self.node.node_data.node_circuit_data.verifier_only,
             &mut pw,
             is_leaf,
         )?;
 
         let proof = self.node.node_data.node_circuit_data.prove(pw)
             .map_err(|e| CircuitError::ProofGenerationError(e.to_string()))?;
-
         Ok(proof)
     }
 
@@ -158,13 +157,7 @@ impl<
         is_leaf: bool,
     ) -> Result<()>{
 
-        if !is_leaf {
-            check_cyclic_proof_verifier_data(
-                &proof,
-                &self.node.node_data.node_circuit_data.verifier_only,
-                &self.node.node_data.node_circuit_data.common,
-            ).map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
-        }
+        // TODO: if !is_leaf check verifier data
 
         self.node.node_data.node_circuit_data.verify(proof)
             .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;

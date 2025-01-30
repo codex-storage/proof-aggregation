@@ -10,7 +10,7 @@ use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use plonky2_field::extension::Extendable;
-use crate::circuits::utils::{select_hash, select_vec, vec_to_array};
+use crate::circuits::utils::{select_vec, vec_to_array};
 use crate::{error::CircuitError, Result};
 use crate::recursion::circuits::leaf_circuit::LeafCircuit;
 
@@ -38,6 +38,7 @@ pub struct NodeCircuitTargets<
     pub condition: BoolTarget,
     pub node_proofs: [ProofWithPublicInputsTarget<D>; N],
     pub leaf_verifier_data: VerifierCircuitTarget,
+    pub node_verifier_data: VerifierCircuitTarget,
 }
 
 /// Node common data and verifier data
@@ -98,7 +99,7 @@ impl<
         }
 
         // leaf verifier data
-        // TODO: double check that it is ok for this verifier data to be private/witness
+        // TODO: make verifier data public
         let leaf_verifier_data = builder.add_virtual_verifier_data(leaf_common.config.fri_config.cap_height);
 
         // condition
@@ -107,25 +108,18 @@ impl<
         // verify leaf proofs in-circuit if it is a leaf node,
         // meaning that we are on bottom layer of the tree
         for i in 0..N{
-            builder.conditionally_verify_proof_or_dummy::<C>(
-                condition,
-                &leaf_proofs[i],
-                &leaf_verifier_data,
-                &leaf_common
-            ).map_err(|e| CircuitError::ConditionalVerificationError(e.to_string()))?;
+            builder.verify_proof::<C>(&leaf_proofs[i], &leaf_verifier_data, &leaf_common);
+
         }
 
         // common data for recursion
         let mut common_data = Self::get_common_data_for_node()?;
         // public input hash. defined here so that is public_input[0..4]
         let pub_input_hash = builder.add_virtual_hash_public_input();
-        // verifier data for the recursion.
-        let _verifier_data_target = builder.add_verifier_data_public_inputs();
+        // TODO: make verifier data public
+        // let _verifier_data_target = builder.add_verifier_data_public_inputs();
+        let verifier_data_target = builder.add_virtual_verifier_data(builder.config.fri_config.cap_height);
         common_data.num_public_inputs = builder.num_public_inputs();
-
-        // flipped condition. used to conditionally verify the node proofs (recursive proofs)
-        let one = builder.one();
-        let flipped_condition = BoolTarget::new_unsafe(builder.sub(one,condition.target));
 
         let inner_cyclic_proof_with_pis: [ProofWithPublicInputsTarget<D>; N] =
             vec_to_array::<N, ProofWithPublicInputsTarget<D>>(
@@ -150,11 +144,8 @@ impl<
 
         // verify all N proofs in-circuit
         for i in 0..N {
-            builder.conditionally_verify_cyclic_proof_or_dummy::<C>(
-                flipped_condition,
-                &inner_cyclic_proof_with_pis[i],
-                &common_data,
-            ).map_err(|e| CircuitError::ConditionalVerificationError(e.to_string()))?;
+            builder.verify_proof::<C>(&inner_cyclic_proof_with_pis[i], &verifier_data_target, &common_data);
+
         }
 
         // build the node circuit
@@ -173,7 +164,8 @@ impl<
             leaf_proofs,
             condition,
             node_proofs: inner_cyclic_proof_with_pis,
-            leaf_verifier_data
+            leaf_verifier_data,
+            node_verifier_data: verifier_data_target
         };
 
         let node_data = NodeData{
@@ -200,6 +192,7 @@ impl<
         leaf_proofs: [ProofWithPublicInputs<F, C, D>; N],
         node_proofs: [ProofWithPublicInputs<F, C, D>; N],
         leaf_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
+        node_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
         pw: &mut PartialWitness<F>,
         is_leaf: bool,
     ) -> Result<()>{
@@ -240,8 +233,10 @@ impl<
                 ).map_err(|e| CircuitError::ProofTargetAssignmentError("dummy leaf proofs".to_string(),e.to_string()))?;
             }
         }
-        // assign the verifier data (only for the leaf proofs)
+        // assign the verifier data
         pw.set_verifier_data_target(&node_targets.leaf_verifier_data, leaf_verifier_only_data)
+            .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
+        pw.set_verifier_data_target(&node_targets.node_verifier_data, node_verifier_only_data)
             .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
 
         Ok(())
@@ -284,8 +279,8 @@ impl<
             let proof = builder.add_virtual_proof_with_pis(&data.common);
             builder.verify_proof::<C>(&proof, &verifier_data, &data.common);
         }
-        // pad. TODO: optimize this padding to only needed number of gates
-        while builder.num_gates() < 1 << 14 {
+        // pad.
+        while builder.num_gates() < 1 << 12 {
             builder.add_gate(NoopGate, vec![]);
         }
         Ok(builder.build::<C>().common)

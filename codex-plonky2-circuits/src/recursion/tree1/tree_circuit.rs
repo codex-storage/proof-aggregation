@@ -1,12 +1,11 @@
 use std::array::from_fn;
 use plonky2::hash::hash_types::RichField;
-use plonky2::iop::witness::{PartialWitness, WitnessWrite};
+use plonky2::iop::witness::{PartialWitness};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::recursion::circuits::inner_circuit::InnerCircuit;
-use plonky2::recursion::cyclic_recursion::check_cyclic_proof_verifier_data;
 use crate::{error::CircuitError, Result};
 use crate::recursion::tree1::node_circuit::NodeCircuit;
 
@@ -70,10 +69,6 @@ impl<
         )?;
 
         let circ_data = &self.node_circ.cyclic_circuit_data;
-        let cyc_targets = &self.node_circ.cyclic_target;
-
-        pw.set_verifier_data_target(&cyc_targets.verifier_data, &circ_data.verifier_only)
-            .map_err(|e| CircuitError::VerifierDataTargetAssignmentError(e.to_string()))?;
 
         let proof = circ_data.prove(pw)
             .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
@@ -150,11 +145,7 @@ impl<
 
         let circ_data = &self.node_circ.cyclic_circuit_data;
 
-        check_cyclic_proof_verifier_data(
-            &proof,
-            &circ_data.verifier_only,
-            &circ_data.common,
-        ).map_err(|e| CircuitError::RecursiveProofVerifierDataCheckError(e.to_string()))?;
+        // TODO: check verifier_data
 
         circ_data.verify(proof).map_err(|e|CircuitError::InvalidProofError(e.to_string()))?;
 
