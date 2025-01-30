@@ -5,3 +5,4 @@ pub mod tree1;
 pub mod tree2;
 pub mod hybrid;
 pub mod utils;
+pub mod uniform;
