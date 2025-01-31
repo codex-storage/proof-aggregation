@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierCircuitTarget};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
@@ -46,15 +46,6 @@ pub struct LeafTargets <
     pub inner_proof: ProofWithPublicInputsTarget<D>,
     pub verifier_data: VerifierCircuitTarget,
 }
-#[derive(Clone, Debug)]
-pub struct LeafInput<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-    C: GenericConfig<D, F = F>,
->{
-    pub inner_proof: ProofWithPublicInputs<F, C, D>,
-    pub verifier_data: VerifierCircuitData<F, C, D>
-}
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
@@ -83,6 +74,15 @@ impl<
         // virtual target for the verifier data
         let inner_verifier_data = builder.add_virtual_verifier_data(inner_common.config.fri_config.cap_height);
 
+        // register verifier data hash as public input.
+        let mut vd_pub_input = vec![];
+        vd_pub_input.extend_from_slice(&inner_verifier_data.circuit_digest.elements);
+        for i in 0..builder.config.fri_config.num_cap_elements() {
+            vd_pub_input.extend_from_slice(&inner_verifier_data.constants_sigmas_cap.0[i].elements);
+        }
+        let hash_inner_vd_pub_input = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
+        builder.register_public_inputs(&hash_inner_vd_pub_input.elements);
+
         // verify the proofs in-circuit (only one )
         builder.verify_proof::<C>(&vir_proof, &inner_verifier_data, &inner_common);
 
@@ -99,16 +99,17 @@ impl<
     pub fn assign_targets(
         &self, pw: &mut PartialWitness<F>,
         targets: &LeafTargets<D>,
-        input: &LeafInput<F, D, C>
+        inner_proof: &ProofWithPublicInputs<F, C, D>,
+        verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
         // assign the proofs
-        pw.set_proof_with_pis_target(&targets.inner_proof, &input.inner_proof)
+        pw.set_proof_with_pis_target(&targets.inner_proof, inner_proof)
             .map_err(|e| {
                 CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
             })?;
 
         // assign the verifier data
-        pw.set_verifier_data_target(&targets.verifier_data, &input.verifier_data.verifier_only)
+        pw.set_verifier_data_target(&targets.verifier_data, verifier_only_data)
             .map_err(|e| {
                 CircuitError::VerifierDataTargetAssignmentError(e.to_string())
             })?;

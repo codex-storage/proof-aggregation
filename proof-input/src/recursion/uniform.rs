@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use plonky2::iop::witness::{PartialWitness};
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::{CircuitConfig};
@@ -40,9 +41,16 @@ mod tests {
 
         let mut tree = TreeRecursion::<F,D,C,HF>::build(inner_data.common.clone())?;
 
-        let root = tree.prove_tree(&proofs, inner_data.verifier_data())?;
+        let root = tree.prove_tree(&proofs, &inner_data.verifier_only)?;
+        println!("pub input size = {}", root.public_inputs.len());
+
+        let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
+
+        assert!(
+            tree.verify_proof_and_public_input(root,inner_pi,&inner_data.verifier_data()).is_ok(),
+            "proof verification failed"
+        );
 
         Ok(())
     }
-
 }

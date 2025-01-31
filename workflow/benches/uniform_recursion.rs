@@ -51,7 +51,7 @@ fn bench_uniform_recursion<const N: usize,>(c: &mut Criterion) -> anyhow::Result
     // Proving Phase
     group.bench_function("prove tree", |b| {
         b.iter(|| {
-            proof = Some(tree.prove_tree(&proofs, inner_data.verifier_data()).unwrap());
+            proof = Some(tree.prove_tree(&proofs, &inner_data.verifier_only).unwrap());
         })
     });
 
@@ -70,6 +70,7 @@ fn bench_uniform_recursion<const N: usize,>(c: &mut Criterion) -> anyhow::Result
 
 fn bench_uniform_tree_recursion(c: &mut Criterion){
     const N: usize = 2; // number of child nodes - binary here
+    bench_uniform_recursion::<2>(c).expect("bench failed");
     bench_uniform_recursion::<4>(c).expect("bench failed");
     bench_uniform_recursion::<8>(c).expect("bench failed");
     bench_uniform_recursion::<16>(c).expect("bench failed");

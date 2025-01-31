@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierCircuitTarget};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
@@ -47,15 +47,6 @@ pub struct NodeTargets<
     pub leaf_proofs: [ProofWithPublicInputsTarget<D>; 2],
     pub verifier_data: VerifierCircuitTarget,
 }
-#[derive(Clone, Debug)]
-pub struct NodeInput<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-    C: GenericConfig<D, F = F>,
->{
-    pub node_proofs: [ProofWithPublicInputs<F, C, D>;2],
-    pub verifier_data: VerifierCircuitData<F, C, D>
-}
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
@@ -71,14 +62,19 @@ impl<
 
         let inner_common = self.leaf_common_data.clone();
 
+        // assert public input is of size 8 - 2 hashout
+        assert_eq!(inner_common.num_public_inputs, 8);
+
         // the proof virtual targets - 2 proofs
         let mut vir_proofs = vec![];
         let mut pub_input = vec![];
+        let mut inner_vd_hashes = vec![];
         for _i in 0..2 {
             let vir_proof = builder.add_virtual_proof_with_pis(&inner_common);
             let inner_pub_input = vir_proof.public_inputs.clone();
             vir_proofs.push(vir_proof);
-            pub_input.extend_from_slice(&inner_pub_input);
+            pub_input.extend_from_slice(&inner_pub_input[0..4]);
+            inner_vd_hashes.extend_from_slice(&inner_pub_input[4..8]);
         }
 
         // hash the public input & make it public
@@ -87,6 +83,17 @@ impl<
 
         // virtual target for the verifier data
         let inner_verifier_data = builder.add_virtual_verifier_data(inner_common.config.fri_config.cap_height);
+
+        // register verifier data hash as public input. H(H_l, H_l, H_n) -> public input
+        let mut vd_pub_input = vec![];
+        vd_pub_input.extend_from_slice(&inner_verifier_data.circuit_digest.elements);
+        for i in 0..builder.config.fri_config.num_cap_elements() {
+            vd_pub_input.extend_from_slice(&inner_verifier_data.constants_sigmas_cap.0[i].elements);
+        }
+        let vd_hash = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
+        inner_vd_hashes.extend_from_slice(&vd_hash.elements);
+        let vd_hash_all = builder.hash_n_to_hash_no_pad::<H>(inner_vd_hashes);
+        builder.register_public_inputs(&vd_hash_all.elements);
 
         // verify the proofs in-circuit  - 2 proofs
         for i in 0..2 {
@@ -108,18 +115,22 @@ impl<
     pub fn assign_targets(
         &self, pw: &mut PartialWitness<F>,
         targets: &NodeTargets<D>,
-        input: &NodeInput<F, D, C>
+        node_proofs: &[ProofWithPublicInputs<F, C, D>],
+        verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
+        // assert size of proofs vec
+        assert_eq!(node_proofs.len(), 2);
+
         // assign the proofs
         for i in 0..2 {
-            pw.set_proof_with_pis_target(&targets.leaf_proofs[i], &input.node_proofs[i])
+            pw.set_proof_with_pis_target(&targets.leaf_proofs[i], &node_proofs[i])
                 .map_err(|e| {
                     CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
                 })?;
         }
 
         // assign the verifier data
-        pw.set_verifier_data_target(&targets.verifier_data, &input.verifier_data.verifier_only)
+        pw.set_verifier_data_target(&targets.verifier_data, &verifier_only_data)
             .map_err(|e| {
                 CircuitError::VerifierDataTargetAssignmentError(e.to_string())
             })?;
