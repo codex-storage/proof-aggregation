@@ -10,13 +10,14 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use crate::{error::CircuitError,Result};
 
-/// recursion leaf circuit - verifies one inner proof
+/// recursion leaf circuit - verifies N inner proof
 #[derive(Clone, Debug)]
 pub struct LeafCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
+    const N: usize,
 > where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
@@ -24,26 +25,11 @@ pub struct LeafCircuit<
     phantom_data: PhantomData<(C,H)>
 }
 
-impl<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-    C: GenericConfig<D, F = F>,
-    H: AlgebraicHasher<F>,
-> LeafCircuit<F,D,C,H> where
-    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
-{
-    pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
-        Self{
-            inner_common_data,
-            phantom_data:PhantomData::default(),
-        }
-    }
-}
 #[derive(Clone, Debug)]
 pub struct LeafTargets <
     const D: usize,
 >{
-    pub inner_proof: ProofWithPublicInputsTarget<D>,
+    pub inner_proof: Vec<ProofWithPublicInputsTarget<D>>,
     pub verifier_data: VerifierCircuitTarget,
 }
 
@@ -52,20 +38,31 @@ impl<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
-> LeafCircuit<F,D,C,H> where
+    const N: usize,
+> LeafCircuit<F,D,C,H,N> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
+    pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
+        Self{
+            inner_common_data,
+            phantom_data:PhantomData::default(),
+        }
+    }
 
     /// build the leaf circuit
     pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<LeafTargets<D>> {
 
         let inner_common = self.inner_common_data.clone();
 
-        // the proof virtual targets - only one
+        // the proof virtual targets
         let mut pub_input = vec![];
-        let vir_proof = builder.add_virtual_proof_with_pis(&inner_common);
-        let inner_pub_input = vir_proof.public_inputs.clone();
-        pub_input.extend_from_slice(&inner_pub_input);
+        let mut vir_proofs = vec![];
+        for _i in 0..N {
+            let vir_proof = builder.add_virtual_proof_with_pis(&inner_common);
+            let inner_pub_input = vir_proof.public_inputs.clone();
+            vir_proofs.push(vir_proof);
+            pub_input.extend_from_slice(&inner_pub_input);
+        }
 
         // hash the public input & make it public
         let hash_inner_pub_input = builder.hash_n_to_hash_no_pad::<H>(pub_input);
@@ -83,12 +80,14 @@ impl<
         let hash_inner_vd_pub_input = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
         builder.register_public_inputs(&hash_inner_vd_pub_input.elements);
 
-        // verify the proofs in-circuit (only one )
-        builder.verify_proof::<C>(&vir_proof, &inner_verifier_data, &inner_common);
+        // verify the proofs in-circuit
+        for i in 0..N {
+            builder.verify_proof::<C>(&vir_proofs[i], &inner_verifier_data, &inner_common);
+        }
 
         // return targets
         let t = LeafTargets {
-            inner_proof: vir_proof,
+            inner_proof: vir_proofs,
             verifier_data: inner_verifier_data,
         };
         Ok(t)
@@ -99,14 +98,17 @@ impl<
     pub fn assign_targets(
         &self, pw: &mut PartialWitness<F>,
         targets: &LeafTargets<D>,
-        inner_proof: &ProofWithPublicInputs<F, C, D>,
+        inner_proof: &[ProofWithPublicInputs<F, C, D>],
         verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
+        assert_eq!(inner_proof.len(), N);
         // assign the proofs
-        pw.set_proof_with_pis_target(&targets.inner_proof, inner_proof)
-            .map_err(|e| {
-                CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
-            })?;
+        for i in 0..N {
+            pw.set_proof_with_pis_target(&targets.inner_proof[i], &inner_proof[i])
+                .map_err(|e| {
+                    CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
+                })?;
+        }
 
         // assign the verifier data
         pw.set_verifier_data_target(&targets.verifier_data, verifier_only_data)

@@ -18,6 +18,7 @@ pub struct NodeCircuit<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
+    const M: usize,
 > where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
@@ -25,26 +26,11 @@ pub struct NodeCircuit<
     phantom_data: PhantomData<(C,H)>
 }
 
-impl<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
-    C: GenericConfig<D, F = F>,
-    H: AlgebraicHasher<F>,
-> NodeCircuit<F,D,C,H> where
-    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
-{
-    pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
-        Self{
-            leaf_common_data: inner_common_data,
-            phantom_data:PhantomData::default(),
-        }
-    }
-}
 #[derive(Clone, Debug)]
 pub struct NodeTargets<
     const D: usize,
 >{
-    pub leaf_proofs: [ProofWithPublicInputsTarget<D>; 2],
+    pub leaf_proofs: Vec<ProofWithPublicInputsTarget<D>>,
     pub verifier_data: VerifierCircuitTarget,
 }
 
@@ -53,9 +39,17 @@ impl<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
-> NodeCircuit<F,D,C,H> where
+    const M: usize,
+> NodeCircuit<F,D,C,H,M> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
+
+    pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
+        Self{
+            leaf_common_data: inner_common_data,
+            phantom_data:PhantomData::default(),
+        }
+    }
 
     /// build the leaf circuit
     pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<NodeTargets<D>> {
@@ -65,11 +59,11 @@ impl<
         // assert public input is of size 8 - 2 hashout
         assert_eq!(inner_common.num_public_inputs, 8);
 
-        // the proof virtual targets - 2 proofs
+        // the proof virtual targets - M proofs
         let mut vir_proofs = vec![];
         let mut pub_input = vec![];
         let mut inner_vd_hashes = vec![];
-        for _i in 0..2 {
+        for _i in 0..M {
             let vir_proof = builder.add_virtual_proof_with_pis(&inner_common);
             let inner_pub_input = vir_proof.public_inputs.clone();
             vir_proofs.push(vir_proof);
@@ -95,16 +89,16 @@ impl<
         let vd_hash_all = builder.hash_n_to_hash_no_pad::<H>(inner_vd_hashes);
         builder.register_public_inputs(&vd_hash_all.elements);
 
-        // verify the proofs in-circuit  - 2 proofs
-        for i in 0..2 {
+        // verify the proofs in-circuit  - M proofs
+        for i in 0..M {
         builder.verify_proof::<C>(&vir_proofs[i], &inner_verifier_data, &inner_common);
         }
 
-        let proofs = vec_to_array::<2, ProofWithPublicInputsTarget<D>>(vir_proofs)?;
+        // let proofs = vec_to_array::<2, ProofWithPublicInputsTarget<D>>(vir_proofs)?;
 
         // return targets
         let t = NodeTargets {
-            leaf_proofs: proofs,
+            leaf_proofs: vir_proofs,
             verifier_data: inner_verifier_data,
         };
         Ok(t)
@@ -119,10 +113,10 @@ impl<
         verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
         // assert size of proofs vec
-        assert_eq!(node_proofs.len(), 2);
+        assert_eq!(node_proofs.len(), M);
 
         // assign the proofs
-        for i in 0..2 {
+        for i in 0..M {
             pw.set_proof_with_pis_target(&targets.leaf_proofs[i], &node_proofs[i])
                 .map_err(|e| {
                     CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())

@@ -17,11 +17,13 @@ pub struct TreeRecursion<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
+    const N: usize,
+    const M: usize,
 > where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
-    leaf: LeafCircuit<F, D, C, H>,
-    node: NodeCircuit<F, D, C, H>,
+    leaf: LeafCircuit<F, D, C, H, N>,
+    node: NodeCircuit<F, D, C, H, M>,
     leaf_circ_data: CircuitData<F, C, D>,
     node_circ_data: CircuitData<F, C, D>,
     leaf_targets: LeafTargets<D>,
@@ -34,7 +36,9 @@ impl<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
-> TreeRecursion<F, D, C, H> where
+    const N: usize,
+    const M: usize,
+> TreeRecursion<F, D, C, H, N, M> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
 
@@ -45,7 +49,7 @@ impl<
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let leaf = LeafCircuit::new(inner_common_data.clone());
+        let leaf = LeafCircuit::<_,D,_,_,N>::new(inner_common_data.clone());
         let leaf_targets = leaf.build(&mut builder)?;
         let leaf_circ_data = builder.build::<C>();
         // println!("leaf circuit size = {:?}", leaf_circ_data.common.degree_bits());
@@ -54,7 +58,7 @@ impl<
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let node = NodeCircuit::new(leaf_circ_data.common.clone());
+        let node = NodeCircuit::<_,D,_,_,M>::new(leaf_circ_data.common.clone());
         let node_targets = node.build(&mut builder)?;
         let node_circ_data = builder.build::<C>();
         // println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
@@ -113,7 +117,7 @@ impl<
 
         let mut leaf_proofs = vec![];
 
-        for proof in proofs_with_pi{
+        for proof in proofs_with_pi.chunks(N){
             let mut pw = PartialWitness::<F>::new();
 
             self.leaf.assign_targets(&mut pw,&self.leaf_targets,proof,inner_verifier_only_data)?;
@@ -124,7 +128,7 @@ impl<
         Ok(leaf_proofs)
     }
 
-    /// generates a proof - only one node
+    /// generates a proof
     fn prove(
         &self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
@@ -139,7 +143,7 @@ impl<
 
         let mut new_proofs = vec![];
 
-        for chunk in proofs_with_pi.chunks(2) {
+        for chunk in proofs_with_pi.chunks(M) {
 
             let mut inner_pw = PartialWitness::new();
 
@@ -185,8 +189,12 @@ impl<
 
         let mut pub_in_hashes = vec![];
         let mut inner_vd_hashes = vec![];
-        for pub_in in inner_public_input{
-            let hash = H::hash_no_pad(&pub_in);
+        for pub_in in inner_public_input.chunks(N){
+            let pub_in_flat: Vec<F> = pub_in
+                .iter()
+                .flat_map(|v| v.iter().cloned())
+                .collect();
+            let hash = H::hash_no_pad(&pub_in_flat);
             pub_in_hashes.push(hash);
             inner_vd_hashes.push(inner_hash.clone());
         }
@@ -195,7 +203,7 @@ impl<
         while pub_in_hashes.len() > 1 {
             let mut next_level_pi_hashes = Vec::new();
             let mut next_level_vd_hashes = Vec::new();
-            for (pi_chunk, vd_chunk) in pub_in_hashes.chunks(2).zip(inner_vd_hashes.chunks(2)) {
+            for (pi_chunk, vd_chunk) in pub_in_hashes.chunks(M).zip(inner_vd_hashes.chunks(M)) {
                 // collect field elements
                 let pi_chunk_f: Vec<F> = pi_chunk.iter()
                     .flat_map(|h| h.elements.iter().cloned())
