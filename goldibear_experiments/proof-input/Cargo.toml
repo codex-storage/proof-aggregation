@@ -1,0 +1,21 @@
+[package]
+name = "proof-input"
+description = "proof input generation library"
+authors = ["Mohammed Alghazwi <m.ghazwi@gmail.com>"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = { version = "1.0.89"}
+plonky2  = { git = "https://github.com/telosnetwork/plonky2_goldibear.git"}
+plonky2_field = { git = "https://github.com/telosnetwork/plonky2_goldibear.git"}
+# --- local ---
+codex-plonky2-circuits = { path = "../codex-plonky2-circuits" }
+criterion = "0.5.1"
+
+[[bench]]
+name = "sample_cells"
+harness = false
