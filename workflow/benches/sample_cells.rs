@@ -44,9 +44,10 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
         b.iter(|| {
             let config = CircuitConfig::standard_recursion_config();
             let mut local_builder = CircuitBuilder::<F, D>::new(config);
-            let local_targets = targets.clone();
-            let mut local_pw = pw.clone();
-            circ.sample_slot_assign_witness(&mut local_pw, &local_targets, &circ_input.clone());
+            let _targets = circ.sample_slot_circuit_with_public_input(&mut local_builder);
+            // let local_targets = targets.clone();
+            // let mut local_pw = pw.clone();
+            // circ.sample_slot_assign_witness(&mut local_pw, &local_targets, &circ_input.clone());
             let _data = local_builder.build::<C>();
         })
     });
@@ -58,14 +59,14 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
     println!("Build time: {:?}", build_duration);
     println!("Circuit size (degree bits): {:?}", data.common.degree_bits());
 
-    let num_constr: usize = data.common
-        .gates
-        .iter()
-        .map(|gate| gate.0.num_constraints())
-        .sum();
-
-    println!("Number of constraints: {}", num_constr);
-    println!("Number of gates used: {}", data.common.gates.len());
+    // let num_constr: usize = data.common
+    //     .gates
+    //     .iter()
+    //     .map(|gate| gate.0.num_constraints())
+    //     .sum();
+    //
+    // println!("Number of constraints: {}", num_constr);
+    // println!("Number of gates used: {}", data.common.gates.len());
 
     // Benchmark the Proving Phase
     group.bench_function("Prove Circuit", |b| {

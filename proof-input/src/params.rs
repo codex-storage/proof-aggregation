@@ -10,9 +10,9 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;
 
 // test types
 pub const D: usize = 2;
-pub type C = PoseidonGoldilocksConfig;
+pub type C = Poseidon2GoldilocksConfig;
 pub type F = <C as GenericConfig<D>>::F; // this is the goldilocks field
-pub type HF = PoseidonHash;
+pub type HF = Poseidon2Hash;
 
 // hardcoded default params for generating proof input
 const DEFAULT_MAX_DEPTH: usize = 32; // depth of big tree (slot tree depth, includes block tree depth)

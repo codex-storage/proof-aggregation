@@ -6,7 +6,7 @@ use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-// use crate::recursion::circuits::inner_circuit::InnerCircuit;
+use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use plonky2_field::extension::Extendable;
 use crate::{error::CircuitError, Result};
 use crate::recursion::uniform::{leaf::{LeafTargets,LeafCircuit},node::{NodeTargets,NodeCircuit}};

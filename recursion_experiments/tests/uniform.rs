@@ -35,13 +35,22 @@ mod tests {
         println!("sampling circuit degree bits = {:?}", inner_data.common.degree_bits());
         let inner_proof = inner_data.prove(pw)?;
 
-        let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..4).map(|i| inner_proof.clone()).collect();
+        let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..16).map(|i| inner_proof.clone()).collect();
 
         // ------------------- tree --------------------
         const N: usize = 1;
-        const M: usize = 2;
+        const M: usize = 4;
 
         let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build(inner_data.common.clone())?;
+
+        // serialize circuit into JSON
+        let common_circuit_data_serialized        = serde_json::to_string(&tree.get_leaf_verifier_data().common       ).unwrap();
+        fs::write("leaf_common.json" , common_circuit_data_serialized)       .expect("Unable to write file");
+
+        // serialize circuit into JSON
+        let common_circuit_data_serialized        = serde_json::to_string(&tree.get_node_verifier_data().common       ).unwrap();
+        fs::write("node_common.json" , common_circuit_data_serialized)       .expect("Unable to write file");
+
 
         let root = tree.prove_tree(&proofs, &inner_data.verifier_only)?;
         println!("pub input size = {}", root.public_inputs.len());

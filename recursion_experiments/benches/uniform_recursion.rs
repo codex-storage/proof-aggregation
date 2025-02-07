@@ -11,9 +11,9 @@ use proof_input::gen_input::gen_testing_circuit_input;
 use proof_input::params::Params;
 
 /// Benchmark for building, proving, and verifying the Plonky2 tree recursion circuit.
-fn bench_uniform_recursion<const K: usize,const N: usize,const M: usize,>(c: &mut Criterion) -> anyhow::Result<()>{
+fn bench_uniform_recursion<const N: usize,>(c: &mut Criterion) -> anyhow::Result<()>{
 
-    let mut group = c.benchmark_group(format!("Uniform Tree Recursion Benchmark for aggregating {} proofs with params: N={}, M={}",K,N,M));
+    let mut group = c.benchmark_group(format!("Uniform Tree Recursion Benchmark for N={}",N));
 
     //------------ sampling inner circuit ----------------------
     // Circuit that does the sampling - 100 samples
@@ -35,12 +35,12 @@ fn bench_uniform_recursion<const K: usize,const N: usize,const M: usize,>(c: &mu
 
     // ------------------- tree --------------------
 
-    let mut tree : Option<TreeRecursion<F, D, C, HF, N, M>> = None;
+    let mut tree : Option<TreeRecursion<F, D, C, HF>> = None;
 
     // Building phase
     group.bench_function("build tree", |b| {
         b.iter(|| {
-            tree = Some(TreeRecursion::<F,D,C,HF, N, M>::build(inner_data.common.clone()).unwrap());
+            tree = Some(TreeRecursion::<F,D,C,HF>::build(inner_data.common.clone()).unwrap());
         })
     });
 
@@ -57,31 +57,27 @@ fn bench_uniform_recursion<const K: usize,const N: usize,const M: usize,>(c: &mu
 
     let proof = proof.unwrap();
 
-    let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
-
     // Verifying Phase
-    group.bench_function("verify root proof", |b| {
-        b.iter(|| {
-            tree.verify_proof_and_public_input(proof.clone(),inner_pi.clone(),&inner_data.verifier_data())
-        })
-    });
+    // group.bench_function("verify tree circuit", |b| {
+    //     b.iter(|| {
+    //         verifier_data.verify(proof.clone()).expect("verify fail");
+    //     })
+    // });
 
     group.finish();
     Ok(())
 }
 
 fn bench_uniform_tree_recursion(c: &mut Criterion){
-    const K: usize = 32; // number of inner proofs to aggregate
-    const N: usize = 1; // number of inner proofs in the leaf
-    const M: usize = 2; // number of leaf proofs in the node
-    bench_uniform_recursion::<2, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<4, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<8, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<16, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<32, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<64, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<128, N, M>(c).expect("bench failed");
-    bench_uniform_recursion::<256, N, M>(c).expect("bench failed");
+    const N: usize = 2; // number of child nodes - binary here
+    bench_uniform_recursion::<2>(c).expect("bench failed");
+    bench_uniform_recursion::<4>(c).expect("bench failed");
+    bench_uniform_recursion::<8>(c).expect("bench failed");
+    bench_uniform_recursion::<16>(c).expect("bench failed");
+    bench_uniform_recursion::<32>(c).expect("bench failed");
+    bench_uniform_recursion::<64>(c).expect("bench failed");
+    bench_uniform_recursion::<128>(c).expect("bench failed");
+    bench_uniform_recursion::<256>(c).expect("bench failed");
 }
 
 /// Criterion benchmark group

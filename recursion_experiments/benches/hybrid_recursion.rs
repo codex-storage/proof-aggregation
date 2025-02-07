@@ -15,7 +15,7 @@ use proof_input::params::Params;
 /// Benchmark for building, proving, and verifying the Plonky2 tree recursion circuit.
 fn bench_hybrid_recursion<const N: usize, const M: usize, const K: usize>(c: &mut Criterion) -> anyhow::Result<()>{
 
-    let mut group = c.benchmark_group(format!("Tree Recursion - Approach 2 Benchmark for N={}",K));
+    let mut group = c.benchmark_group(format!("Tree Recursion - Approach 2 Benchmark for N={}, leaf ={}, Node ={}",K, M,N));
 
     //------------ sampling inner circuit ----------------------
     // Circuit that does the sampling - default input
@@ -77,9 +77,18 @@ fn bench_tree_recursion_approach2(c: &mut Criterion){
     const N: usize = 2; // number of child nodes - binary here
     const M: usize = 64; // number of proofs aggregated in leaves
     const K: usize = 128; // number of proofs to be aggregated in the tree
-    bench_hybrid_recursion::<N,8,128>(c);
-    bench_hybrid_recursion::<N,4,128>(c);
-    // bench_hybrid_recursion::<N,M,K>(c);
+    bench_hybrid_recursion::<N,4,4>(c);
+    bench_hybrid_recursion::<N,8,8>(c);
+    bench_hybrid_recursion::<N,4,16>(c);
+    bench_hybrid_recursion::<N,8,16>(c);
+    bench_hybrid_recursion::<N,16,16>(c);
+    bench_hybrid_recursion::<N,8,32>(c);
+    bench_hybrid_recursion::<N,16,32>(c);
+    bench_hybrid_recursion::<N,32,32>(c);
+    bench_hybrid_recursion::<N,16,64>(c);
+    bench_hybrid_recursion::<N,32,64>(c);
+    bench_hybrid_recursion::<N,16,128>(c);
+    bench_hybrid_recursion::<4,16,128>(c);
 }
 
 /// Criterion benchmark group

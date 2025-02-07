@@ -47,33 +47,5 @@ name = "sample_cells"
 harness = false
 
 [[bench]]
-name = "simple_recursion"
-harness = false
-
-[[bench]]
-name = "simple_recursion_hashed_pi"
-harness = false
-
-[[bench]]
-name = "cyclic_recursion"
-harness = false
-
-[[bench]]
-name = "tree_recursion1"
-harness = false
-
-[[bench]]
-name = "tree_recursion2"
-harness = false
-
-[[bench]]
-name = "simple_tree_recursion"
-harness = false
-
-[[bench]]
-name = "hybrid_recursion"
-harness = false
-
-[[bench]]
 name = "uniform_recursion"
 harness = false
