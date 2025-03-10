@@ -19,7 +19,8 @@ use plonky2::{
     },
     plonk::circuit_builder::CircuitBuilder,
 };
-use plonky2::plonk::config::AlgebraicHasher;
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
+use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
 use crate::{
@@ -55,6 +56,7 @@ impl<
             phantom_data: Default::default(),
         }
     }
+    
 }
 
 /// struct of input to the circuit as targets
@@ -350,10 +352,9 @@ impl<
         // circuit params
         let CircuitParams {
             max_depth,
-            max_log2_n_slots,
-            block_tree_depth,
             n_field_elems_per_cell,
             n_samples,
+            ..
         } = self.params;
 
         // assign n_cells_per_slot

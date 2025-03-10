@@ -9,14 +9,13 @@ use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError,Result};
 
-/// recursion leaf circuit - verifies N inner proof
+/// recursion compression circuit - verifies 1 inner proof
 #[derive(Clone, Debug)]
-pub struct LeafCircuit<
+pub struct CompressionCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
-    const N: usize,
 > where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
@@ -25,10 +24,10 @@ pub struct LeafCircuit<
 }
 
 #[derive(Clone, Debug)]
-pub struct LeafTargets <
+pub struct CompressionTargets<
     const D: usize,
 >{
-    pub inner_proof: Vec<ProofWithPublicInputsTarget<D>>,
+    pub inner_proof: ProofWithPublicInputsTarget<D>,
     pub verifier_data: VerifierCircuitTarget,
 }
 
@@ -37,8 +36,7 @@ impl<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
-    const N: usize,
-> LeafCircuit<F,D,C,H,N> where
+> CompressionCircuit<F,D,C,H> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
     pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
@@ -48,24 +46,18 @@ impl<
         }
     }
 
-    /// build the leaf circuit
-    pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<LeafTargets<D>> {
+    /// build the compression circuit
+    pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<CompressionTargets<D>> {
 
         let inner_common = self.inner_common_data.clone();
 
         // the proof virtual targets
-        let mut pub_input = vec![];
-        let mut vir_proofs = vec![];
-        for _i in 0..N {
-            let vir_proof = builder.add_virtual_proof_with_pis(&inner_common);
-            let inner_pub_input = vir_proof.public_inputs.clone();
-            vir_proofs.push(vir_proof);
-            pub_input.extend_from_slice(&inner_pub_input);
-        }
+        let vir_proof = builder.add_virtual_proof_with_pis(&inner_common);
+        let inner_pub_input = vir_proof.public_inputs.clone();
 
-        // hash the public input & make it public
-        let hash_inner_pub_input = builder.hash_n_to_hash_no_pad::<H>(pub_input);
-        builder.register_public_inputs(&hash_inner_pub_input.elements);
+        // take the public input from inner proof & make it public
+        assert_eq!(inner_pub_input.len(), 8);
+        builder.register_public_inputs(&inner_pub_input[0..4]);
 
         // virtual target for the verifier data
         let inner_verifier_data = builder.add_virtual_verifier_data(inner_common.config.fri_config.cap_height);
@@ -77,37 +69,36 @@ impl<
             vd_pub_input.extend_from_slice(&inner_verifier_data.constants_sigmas_cap.0[i].elements);
         }
         let hash_inner_vd_pub_input = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
-        builder.register_public_inputs(&hash_inner_vd_pub_input.elements);
+        let mut vd_to_hash = vec![];
+        vd_to_hash.extend_from_slice(&inner_pub_input[4..8]);
+        vd_to_hash.extend_from_slice(&hash_inner_vd_pub_input.elements);
+        let vd_hash = builder.hash_n_to_hash_no_pad::<H>(vd_to_hash);
+        builder.register_public_inputs(&vd_hash.elements);
 
         // verify the proofs in-circuit
-        for i in 0..N {
-            builder.verify_proof::<C>(&vir_proofs[i], &inner_verifier_data, &inner_common);
-        }
+        builder.verify_proof::<C>(&vir_proof, &inner_verifier_data, &inner_common);
 
         // return targets
-        let t = LeafTargets {
-            inner_proof: vir_proofs,
+        let t = CompressionTargets {
+            inner_proof: vir_proof,
             verifier_data: inner_verifier_data,
         };
         Ok(t)
 
     }
 
-    /// assign the leaf targets with given input
+    /// assign the compression targets with given input
     pub fn assign_targets(
         &self, pw: &mut PartialWitness<F>,
-        targets: &LeafTargets<D>,
-        inner_proof: &[ProofWithPublicInputs<F, C, D>],
+        targets: &CompressionTargets<D>,
+        inner_proof: ProofWithPublicInputs<F, C, D>,
         verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
-        assert_eq!(inner_proof.len(), N);
-        // assign the proofs
-        for i in 0..N {
-            pw.set_proof_with_pis_target(&targets.inner_proof[i], &inner_proof[i])
-                .map_err(|e| {
-                    CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
-                })?;
-        }
+        // assign the proof
+        pw.set_proof_with_pis_target(&targets.inner_proof, &inner_proof)
+            .map_err(|e| {
+                CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
+            })?;
 
         // assign the verifier data
         pw.set_verifier_data_target(&targets.verifier_data, verifier_only_data)
@@ -118,7 +109,7 @@ impl<
         Ok(())
     }
 
-    /// returns the leaf circuit data
+    /// returns the compression circuit data
     pub fn get_circuit_data (&self) -> Result<CircuitData<F, C, D>>
         where
             <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>

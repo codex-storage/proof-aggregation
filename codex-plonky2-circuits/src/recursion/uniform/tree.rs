@@ -6,10 +6,10 @@ use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-// use crate::recursion::circuits::inner_circuit::InnerCircuit;
 use plonky2_field::extension::Extendable;
 use crate::{error::CircuitError, Result};
 use crate::recursion::uniform::{leaf::{LeafTargets,LeafCircuit},node::{NodeTargets,NodeCircuit}};
+use crate::recursion::uniform::compress::{CompressionCircuit, CompressionTargets};
 
 /// tree recursion
 pub struct TreeRecursion<
@@ -24,10 +24,13 @@ pub struct TreeRecursion<
 {
     leaf: LeafCircuit<F, D, C, H, N>,
     node: NodeCircuit<F, D, C, H, M>,
+    compression: CompressionCircuit<F, D, C, H>,
     leaf_circ_data: CircuitData<F, C, D>,
     node_circ_data: CircuitData<F, C, D>,
+    compression_circ_data: CircuitData<F, C, D>,
     leaf_targets: LeafTargets<D>,
     node_targets: NodeTargets<D>,
+    compression_targets: CompressionTargets<D>,
     phantom_data: PhantomData<(H)>
 }
 
@@ -63,13 +66,25 @@ impl<
         let node_circ_data = builder.build::<C>();
         // println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
 
+        // compression build
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let node_common = node_circ_data.common.clone();
+        let compression_circ = CompressionCircuit::new(node_common);
+        let compression_targets = compression_circ.build(&mut builder)?;
+        let compression_circ_data = builder.build::<C>();
+        // println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
+
         Ok(Self{
             leaf,
             node,
+            compression: compression_circ,
             leaf_circ_data,
             node_circ_data,
+            compression_circ_data,
             leaf_targets,
             node_targets,
+            compression_targets,
             phantom_data: Default::default(),
         })
     }
@@ -78,8 +93,32 @@ impl<
         self.leaf_circ_data.verifier_data()
     }
 
+    pub fn get_node_common_data(&self) -> CommonCircuitData<F, D>{
+        self.node_circ_data.common.clone()
+    }
+
+    pub fn get_leaf_common_data(&self) -> CommonCircuitData<F, D>{
+        self.leaf_circ_data.common.clone()
+    }
+
     pub fn get_node_verifier_data(&self) -> VerifierCircuitData<F, C, D>{
         self.node_circ_data.verifier_data()
+    }
+
+    pub fn prove_tree_and_compress(
+        &mut self,
+        proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
+        inner_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
+    ) -> Result<(ProofWithPublicInputs<F, C, D>)>
+    {
+        let proof =
+            self.prove_tree(proofs_with_pi, inner_verifier_only_data)?;
+        let mut pw = PartialWitness::<F>::new();
+        self.compression.assign_targets(&mut pw, &self.compression_targets, proof, &self.node_circ_data.verifier_only)?;
+
+        self.compression_circ_data.prove(pw).map_err(
+            |e| CircuitError::InvalidProofError(e.to_string())
+        )
     }
 
     pub fn prove_tree
@@ -162,19 +201,46 @@ impl<
         self.prove(&new_proofs, &self.node_circ_data.verifier_only)
     }
 
+    pub fn verify_proof(
+        &self,
+        proof: ProofWithPublicInputs<F, C, D>,
+        is_compressed: bool,
+    ) -> Result<()>{
+        if is_compressed{
+            self.compression_circ_data.verify(proof)
+                .map_err(|e| CircuitError::InvalidProofError(e.to_string()))
+        }else {
+            self.node_circ_data.verify(proof)
+                .map_err(|e| CircuitError::InvalidProofError(e.to_string()))
+        }
+    }
+
     pub fn verify_proof_and_public_input(
         &self,
         proof: ProofWithPublicInputs<F, C, D>,
         inner_public_input: Vec<Vec<F>>,
-        inner_verifier_data: &VerifierCircuitData<F, C, D>) -> Result<()>
-    {
+        inner_verifier_data: &VerifierCircuitData<F, C, D>,
+        is_compressed: bool,
+    ) -> Result<()>{
         let public_input = proof.public_inputs.clone();
-        self.node_circ_data.verify(proof)
-            .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
-        self.verify_public_input(public_input, inner_public_input, inner_verifier_data)
+        if is_compressed{
+            self.compression_circ_data.verify(proof)
+                .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
+            self.verify_public_input(public_input, inner_public_input, inner_verifier_data, is_compressed)
+        }else {
+            self.node_circ_data.verify(proof)
+                .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
+            self.verify_public_input(public_input, inner_public_input, inner_verifier_data, is_compressed)
+        }
     }
 
-    pub fn verify_public_input(&self, public_input: Vec<F>, inner_public_input: Vec<Vec<F>>, inner_verifier_data: &VerifierCircuitData<F, C, D>) -> Result<()>{
+    pub fn verify_public_input(
+        &self,
+        public_input: Vec<F>,
+        inner_public_input: Vec<Vec<F>>,
+        inner_verifier_data: &VerifierCircuitData<F, C, D>,
+        is_compressed: bool,
+    ) -> Result<()>{
         assert_eq!(public_input.len(), 8);
 
         let given_input_hash = &public_input[0..4];
@@ -227,7 +293,14 @@ impl<
 
         //check expected hash
         let expected_pi_hash = pub_in_hashes[0];
-        let expected_vd_hash = inner_vd_hashes[0];
+        let mut expected_vd_hash = inner_vd_hashes[0];
+
+        if is_compressed {
+            let mut vd_to_hash = vec![];
+            vd_to_hash.extend_from_slice(&expected_vd_hash.elements);
+            vd_to_hash.extend_from_slice(&node_hash.elements);
+            expected_vd_hash = H::hash_no_pad(&vd_to_hash);
+        }
 
         assert_eq!(given_input_hash, expected_pi_hash.elements);
         assert_eq!(given_vd_hash, expected_vd_hash.elements);

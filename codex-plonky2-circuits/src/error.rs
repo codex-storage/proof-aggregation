@@ -68,4 +68,10 @@ pub enum CircuitError {
 
     #[error("Expected Option {0} to contain value")]
     OptionError(String),
+
+    #[error("Public input length Error: Expected {0}, got {1}")]
+    PublicInputLengthError(usize, usize),
+
+    #[error("{0}")]
+    InvalidArgument(String),
 }
