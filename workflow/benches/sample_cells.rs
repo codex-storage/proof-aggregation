@@ -1,5 +1,5 @@
 use anyhow::Result;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
@@ -10,9 +10,9 @@ use proof_input::gen_input::gen_testing_circuit_input;
 use proof_input::params::{D, C, F, HF, Params};
 
 /// Benchmark for building, proving, and verifying the Plonky2 circuit.
-fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
+fn bench_prove_verify<const N: usize>(c: &mut Criterion) -> Result<()>{
 
-    let n_samples = 100;
+    let n_samples = N;
     // get default parameters
     let params = Params::default();
     let mut test_params = params.input_params;
@@ -20,6 +20,9 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
 
     let mut circuit_params = params.circuit_params;
     circuit_params.n_samples = n_samples;
+
+    #[cfg(feature = "parallel")]
+    println!("Parallel feature is ENABLED");
 
     // gen the circuit input
     let circ_input = gen_testing_circuit_input::<F,D>(&test_params);
@@ -37,7 +40,7 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
     circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input.clone());
 
     // Benchmark Group: Separate benchmarks for building, proving, and verifying
-    let mut group = c.benchmark_group("Sampling Circuit Benchmark");
+    let mut group = c.benchmark_group(format!("Sampling Circuit Benchmark for N= {}", N));
 
     // Benchmark the Circuit Building Phase
     group.bench_function("Build Circuit", |b| {
@@ -45,9 +48,6 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
             let config = CircuitConfig::standard_recursion_config();
             let mut local_builder = CircuitBuilder::<F, D>::new(config);
             let _targets = circ.sample_slot_circuit_with_public_input(&mut local_builder);
-            // let local_targets = targets.clone();
-            // let mut local_pw = pw.clone();
-            // circ.sample_slot_assign_witness(&mut local_pw, &local_targets, &circ_input.clone());
             let _data = local_builder.build::<C>();
         })
     });
@@ -68,12 +68,12 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
     // println!("Number of constraints: {}", num_constr);
     // println!("Number of gates used: {}", data.common.gates.len());
 
-    // Benchmark the Proving Phase
     group.bench_function("Prove Circuit", |b| {
-        b.iter(|| {
-            let local_pw = pw.clone();
-            data.prove(local_pw).expect("Failed to prove circuit")
-        })
+        b.iter_batched(
+            || pw.clone(),
+            |local_pw| data.prove(local_pw).expect("Failed to prove circuit"),
+            BatchSize::SmallInput,
+        )
     });
 
     // Generate the proof once for verification benchmarking
@@ -96,10 +96,17 @@ fn bench_prove_verify(c: &mut Criterion) -> Result<()>{
     Ok(())
 }
 
+fn bench_sampling(c: &mut Criterion) -> Result<()>{
+    bench_prove_verify::<10>(c)?;
+    bench_prove_verify::<50>(c)?;
+    bench_prove_verify::<100>(c)?;
+    Ok(())
+}
+
 /// Criterion benchmark group
 criterion_group!{
-    name = prove_verify_benches;
+    name = benches;
     config = Criterion::default().sample_size(10);
-    targets = bench_prove_verify
+    targets = bench_sampling
 }
-criterion_main!(prove_verify_benches);
+criterion_main!(benches);

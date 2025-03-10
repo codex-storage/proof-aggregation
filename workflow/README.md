@@ -22,6 +22,7 @@ This crate can be used to:
 
 - [`prove_and_verify`](./src/bin/prove_and_verify.rs) contains the main function to generated input with the given params as environment variables.
 
+- [`aggregate`](./src/bin/aggregate.rs) contains the main function to generate the sampling proofs and aggregate `k` of them.
 
 ## Usage
 
@@ -45,7 +46,7 @@ rustup override set nightly
 The steps to generate circuit input with **fake data** are the following:
 
 #### Step 1: Setting Up Parameters
-Parameters for generating the circuit input can be defined in [`params.sh`](./params.sh).
+Parameters for generating the circuit input can be defined in [`params.sh`](scripts/params.sh).
 You can customize the test parameters by setting the following environment variables:
 
 ```bash
@@ -75,13 +76,13 @@ fn main() {
 Once the params are set, you can run the script to generate the [`JSON file`](./input.json).
 
 ```bash
-sudo bash ./gen_input.sh
+sudo bash ./scripts/gen_input.sh
 ```
 
 ### Build the Circuit
 To build the circuit and measure the time to build, you can simply run the script:
 ```bash
-sudo bash ./build_circuit.sh
+sudo bash ./scripts/build_circuit.sh
 ```
 To see the source code of how to build the circuit, see [`build_circ`](./src/bin/build_circ.rs).
 
@@ -91,7 +92,7 @@ you can run the circuits to generate the proofs.
 First make sure you have the [`JSON file`](./input.json), then follow the steps:
 
 #### Step 1: Setting Up Circuit Parameters
-Parameters for the circuit can be defined in [`circ_params.sh`](./circ_params.sh).
+Parameters for the circuit can be defined in [`circ_params.sh`](scripts/circ_params.sh).
 You can customize the test parameters by setting the following environment variables:
 ```bash
 export MAX_DEPTH=32        # maximum depth of the slot tree
@@ -106,16 +107,31 @@ Once the params are set, you can run the script to generate the proof.
 You can also see the time taken to generate the proof. 
 
 ```bash
-sudo bash ./prove.sh
+sudo bash ./scripts/prove.sh
 ```
 
 ### Build, Prove, and Verify
 To automate the whole process, you can run the following script 
 the script builds the circuit, loads the JSON circuit input, generates the proof, and verifies it. 
 It also shows the time taken for each step. 
-Make sure that you generate the circuit input prior to this so that you have the [`JSON input file`](./input.json) and set the [`circ_params.sh`](./circ_params.sh).
+Make sure that you generate the circuit input prior to this so that you have the [`JSON input file`](./input.json) and set the [`circ_params.sh`](scripts/circ_params.sh).
 
 ```bash
-sudo bash ./prove_and_verify.sh
+sudo bash ./scripts/prove_and_verify.sh
 ```
 To inspect the source code, see [`prove_and_verify`](./src/bin/prove_and_verify.rs).
+
+### Generate K Proofs and aggregate them
+To do this, you can run the following script:
+
+```bash
+sudo bash ./scripts/aggregate.sh
+```
+
+
+or the following if you want to specify the number of proofs to be aggregated
+```bash
+sudo bash ./scripts/aggregate.sh -- "$K_VALUE"
+```
+
+

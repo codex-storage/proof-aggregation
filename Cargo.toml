@@ -6,7 +6,7 @@ resolver = "2"
 [workspace.dependencies]
 anyhow  = { version = "1.0.89"}
 unroll = { version = "0.1.5"}
-plonky2 = { version = "1.0.0" }
+plonky2 = { version = "1.0.0" , default-features = false}
 plonky2_field = { version = "1.0.0" }
 plonky2_maybe_rayon = { version = "1.0.0"}
 itertools = { version = "0.12.1"}

@@ -4,7 +4,7 @@ export MAXDEPTH=32        # maximum depth of the slot tree
 export MAXSLOTS=256       # maximum number of slots
 export CELLSIZE=2048      # cell size in bytes
 export BLOCKSIZE=65536    # block size in bytes
-export NSAMPLES=5         # number of samples to prove
+export NSAMPLES=100         # number of samples to prove
 
 export ENTROPY=1234567    # external randomness
 export SEED=12345         # seed for creating fake data

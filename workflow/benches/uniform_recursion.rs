@@ -31,7 +31,7 @@ fn bench_uniform_recursion<const K: usize,const N: usize,const M: usize,>(c: &mu
     let inner_data = sampling_builder.build::<C>();
     let inner_proof = inner_data.prove(pw.clone())?;
 
-    let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..N).map(|i| inner_proof.clone()).collect();
+    let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..K).map(|i| inner_proof.clone()).collect();
 
     // ------------------- tree --------------------
 

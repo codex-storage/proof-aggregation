@@ -22,6 +22,10 @@ proof-input = { path = "../proof-input" }
 criterion = { version = "0.5.1", default-features = false }
 tynm = { version = "0.1.6", default-features = false }
 
+[features]
+default = []
+parallel = ["plonky2/parallel"]
+
 [[bin]]
 name = "prove_and_verify"
 path = "src/bin/prove_and_verify.rs"
@@ -38,6 +42,10 @@ path = "src/bin/build_circ.rs"
 name = "prove"
 path = "src/bin/prove.rs"
 
+[[bin]]
+name = "aggregate"
+path = "src/bin/aggregate.rs"
+
 [[bench]]
 name = "merkle_circuit"
 harness = false
@@ -48,4 +56,8 @@ harness = false
 
 [[bench]]
 name = "uniform_recursion"
+harness = false
+
+[[bench]]
+name = "compression"
 harness = false

@@ -26,7 +26,7 @@ fn main() -> Result<()> {
 
     // Create a PartialWitness and assign
     let mut pw = PartialWitness::new();
-    circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input);
+    circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input)?;
 
     // Build the circuit
     let build_time = Instant::now();
