@@ -13,6 +13,7 @@ mod tests {
     use crate::params::Params;
     use codex_plonky2_circuits::recursion::uniform::{tree::TreeRecursion};
     use codex_plonky2_circuits::recursion::uniform::pi_verifier::PublicInputVerificationCircuit;
+    use codex_plonky2_circuits::recursion::uniform::tree::get_hash_of_verifier_data;
 
     #[test]
     fn test_uniform_recursion() -> anyhow::Result<()> {
@@ -42,25 +43,25 @@ mod tests {
         const N: usize = 1;
         const M: usize = 2;
 
-        let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build(inner_data.common.clone())?;
+        let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build(inner_data.common.clone(), inner_data.verifier_only.clone())?;
 
-        let root = tree.prove_tree(&proofs, &inner_data.verifier_only)?;
+        let root = tree.prove_tree(&proofs)?;
         println!("pub input size = {}", root.public_inputs.len());
         println!("proof size = {:?} bytes", root.to_bytes().len());
 
-        let root_compressed = tree.prove_tree_and_compress(&proofs, &inner_data.verifier_only)?;
+        let root_compressed = tree.prove_tree_and_compress(&proofs)?;
         println!("pub input size (compressed) = {}", root_compressed.public_inputs.len());
         println!("proof size compressed = {:?} bytes", root_compressed.to_bytes().len());
 
         let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
 
         assert!(
-            tree.verify_proof_and_public_input(root,inner_pi.clone(),&inner_data.verifier_data(), false).is_ok(),
+            tree.verify_proof_and_public_input(root,inner_pi.clone(), false).is_ok(),
             "proof verification failed"
         );
 
         assert!(
-            tree.verify_proof_and_public_input(root_compressed,inner_pi,&inner_data.verifier_data(), true).is_ok(),
+            tree.verify_proof_and_public_input(root_compressed,inner_pi, true).is_ok(),
             "compressed proof verification failed"
         );
 
@@ -99,22 +100,22 @@ mod tests {
         const N: usize = 1;
         const M: usize = 2;
 
-        let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build(inner_data.common.clone())?;
+        let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build(inner_data.common.clone(), inner_data.verifier_only.clone())?;
 
-        let root = tree.prove_tree(&proofs, &inner_data.verifier_only)?;
+        let root = tree.prove_tree(&proofs)?;
         println!("pub input size = {}", root.public_inputs.len());
         println!("proof size = {:?} bytes", root.to_bytes().len());
 
         let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
 
         assert!(
-            tree.verify_proof_and_public_input(root.clone(),inner_pi.clone(),&inner_data.verifier_data(), false).is_ok(),
+            tree.verify_proof_and_public_input(root.clone(),inner_pi.clone(), false).is_ok(),
             "proof verification failed"
         );
 
         // ------------------- Public input verifier Circuit --------------------
 
-        let pi_verifier_circ = PublicInputVerificationCircuit::<F, D, C, HF, N, M, T, K>::new(tree.get_node_common_data());
+        let pi_verifier_circ = PublicInputVerificationCircuit::<F, D, C, HF, N, M, T, K>::new(tree.get_node_common_data(), tree.get_node_verifier_data().verifier_only);
 
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
@@ -125,7 +126,7 @@ mod tests {
 
         let mut pw = PartialWitness::<F>::new();
 
-        pi_verifier_circ.assign_targets(&mut pw, &pi_tarq, root, inner_pi.clone(), &tree.get_node_verifier_data(), &tree.get_leaf_verifier_data(), &inner_data.verifier_data())?;
+        pi_verifier_circ.assign_targets(&mut pw, &pi_tarq, root, inner_pi.clone())?;
 
         let proof = pi_circ_data.prove(pw)?;
         println!("pub input size = {}", proof.public_inputs.len());
@@ -134,12 +135,19 @@ mod tests {
         let pub_input_flat: Vec<F> = inner_pi.iter().cloned().flatten().collect();
         let num_pi = proof.public_inputs.len();
 
-        // sanity check
+        // sanity check on public input
         for (i, e) in proof.public_inputs.iter().enumerate(){
             if i < pub_input_flat.len() {
                 assert_eq!(*e, pub_input_flat[i])
             }
         }
+
+        // sanity check on the verifier data
+        let hashed_node_vd = get_hash_of_verifier_data::<F,D,C,HF>(&tree.get_node_verifier_data());
+        for (i, &e) in proof.public_inputs[proof.public_inputs.len()-4 ..].iter().enumerate(){
+            assert_eq!(e, hashed_node_vd.elements[i])
+        }
+
 
         assert!(
             pi_circ_data.verify(proof).is_ok(),

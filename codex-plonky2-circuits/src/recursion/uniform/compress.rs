@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
-use plonky2::hash::hash_types::RichField;
+use plonky2::hash::hash_types::{HashOutTarget, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
@@ -20,7 +20,8 @@ pub struct CompressionCircuit<
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
     inner_common_data: CommonCircuitData<F, D>,
-    phantom_data: PhantomData<(C,H)>
+    inner_verifier_data: VerifierOnlyCircuitData<C, D>,
+    phantom_data: PhantomData<H>
 }
 
 #[derive(Clone, Debug)]
@@ -28,7 +29,6 @@ pub struct CompressionTargets<
     const D: usize,
 >{
     pub inner_proof: ProofWithPublicInputsTarget<D>,
-    pub verifier_data: VerifierCircuitTarget,
 }
 
 impl<
@@ -39,9 +39,13 @@ impl<
 > CompressionCircuit<F,D,C,H> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
-    pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
+    pub fn new(
+        inner_common_data: CommonCircuitData<F,D>,
+        inner_verifier_data: VerifierOnlyCircuitData<C, D>,
+    ) -> Self {
         Self{
             inner_common_data,
+            inner_verifier_data,
             phantom_data:PhantomData::default(),
         }
     }
@@ -59,29 +63,29 @@ impl<
         assert_eq!(inner_pub_input.len(), 8);
         builder.register_public_inputs(&inner_pub_input[0..4]);
 
-        // virtual target for the verifier data
-        let inner_verifier_data = builder.add_virtual_verifier_data(inner_common.config.fri_config.cap_height);
+        // constant target for the verifier data
+        let const_verifier_data = builder.constant_verifier_data(&self.inner_verifier_data);
 
         // register verifier data hash as public input.
         let mut vd_pub_input = vec![];
-        vd_pub_input.extend_from_slice(&inner_verifier_data.circuit_digest.elements);
+        vd_pub_input.extend_from_slice(&const_verifier_data.circuit_digest.elements);
         for i in 0..builder.config.fri_config.num_cap_elements() {
-            vd_pub_input.extend_from_slice(&inner_verifier_data.constants_sigmas_cap.0[i].elements);
+            vd_pub_input.extend_from_slice(&const_verifier_data.constants_sigmas_cap.0[i].elements);
         }
+
         let hash_inner_vd_pub_input = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
-        let mut vd_to_hash = vec![];
-        vd_to_hash.extend_from_slice(&inner_pub_input[4..8]);
-        vd_to_hash.extend_from_slice(&hash_inner_vd_pub_input.elements);
-        let vd_hash = builder.hash_n_to_hash_no_pad::<H>(vd_to_hash);
-        builder.register_public_inputs(&vd_hash.elements);
+
+        // make sure the VerifierData we use is the same as the tree root hash of the VerifierData
+        builder.connect_hashes(hash_inner_vd_pub_input,HashOutTarget::from_vec(inner_pub_input[4..8].to_vec()));
+
+        builder.register_public_inputs(&hash_inner_vd_pub_input.elements);
 
         // verify the proofs in-circuit
-        builder.verify_proof::<C>(&vir_proof, &inner_verifier_data, &inner_common);
+        builder.verify_proof::<C>(&vir_proof, &const_verifier_data, &inner_common);
 
         // return targets
         let t = CompressionTargets {
             inner_proof: vir_proof,
-            verifier_data: inner_verifier_data,
         };
         Ok(t)
 
@@ -92,18 +96,11 @@ impl<
         &self, pw: &mut PartialWitness<F>,
         targets: &CompressionTargets<D>,
         inner_proof: ProofWithPublicInputs<F, C, D>,
-        verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
         // assign the proof
         pw.set_proof_with_pis_target(&targets.inner_proof, &inner_proof)
             .map_err(|e| {
                 CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
-            })?;
-
-        // assign the verifier data
-        pw.set_verifier_data_target(&targets.verifier_data, verifier_only_data)
-            .map_err(|e| {
-                CircuitError::VerifierDataTargetAssignmentError(e.to_string())
             })?;
 
         Ok(())

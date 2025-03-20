@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
-use plonky2::hash::hash_types::RichField;
+use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
@@ -21,7 +21,8 @@ pub struct LeafCircuit<
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
     inner_common_data: CommonCircuitData<F, D>,
-    phantom_data: PhantomData<(C,H)>
+    inner_verifier_data: VerifierOnlyCircuitData<C, D>,
+    phantom_data: PhantomData<H>
 }
 
 #[derive(Clone, Debug)]
@@ -29,7 +30,6 @@ pub struct LeafTargets <
     const D: usize,
 >{
     pub inner_proof: Vec<ProofWithPublicInputsTarget<D>>,
-    pub verifier_data: VerifierCircuitTarget,
 }
 
 impl<
@@ -41,9 +41,13 @@ impl<
 > LeafCircuit<F,D,C,H,N> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
-    pub fn new(inner_common_data: CommonCircuitData<F,D>) -> Self {
+    pub fn new(
+        inner_common_data: CommonCircuitData<F,D>,
+        inner_verifier_data: VerifierOnlyCircuitData<C, D>,
+    ) -> Self {
         Self{
             inner_common_data,
+            inner_verifier_data,
             phantom_data:PhantomData::default(),
         }
     }
@@ -67,27 +71,21 @@ impl<
         let hash_inner_pub_input = builder.hash_n_to_hash_no_pad::<H>(pub_input);
         builder.register_public_inputs(&hash_inner_pub_input.elements);
 
-        // virtual target for the verifier data
-        let inner_verifier_data = builder.add_virtual_verifier_data(inner_common.config.fri_config.cap_height);
+        // pad the public input with constants so that it shares the same structure as the node
+        let zero_hash = builder.constant_hash(HashOut::<F>::default());
+        builder.register_public_inputs(&zero_hash.elements);
 
-        // register verifier data hash as public input.
-        let mut vd_pub_input = vec![];
-        vd_pub_input.extend_from_slice(&inner_verifier_data.circuit_digest.elements);
-        for i in 0..builder.config.fri_config.num_cap_elements() {
-            vd_pub_input.extend_from_slice(&inner_verifier_data.constants_sigmas_cap.0[i].elements);
-        }
-        let hash_inner_vd_pub_input = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
-        builder.register_public_inputs(&hash_inner_vd_pub_input.elements);
+        // virtual constant target for the verifier data
+        let const_verifier_data = builder.constant_verifier_data(&self.inner_verifier_data);
 
         // verify the proofs in-circuit
         for i in 0..N {
-            builder.verify_proof::<C>(&vir_proofs[i], &inner_verifier_data, &inner_common);
+            builder.verify_proof::<C>(&vir_proofs[i], &const_verifier_data, &inner_common);
         }
 
         // return targets
         let t = LeafTargets {
             inner_proof: vir_proofs,
-            verifier_data: inner_verifier_data,
         };
         Ok(t)
 
@@ -98,7 +96,6 @@ impl<
         &self, pw: &mut PartialWitness<F>,
         targets: &LeafTargets<D>,
         inner_proof: &[ProofWithPublicInputs<F, C, D>],
-        verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<()> {
         assert_eq!(inner_proof.len(), N);
         // assign the proofs
@@ -108,12 +105,6 @@ impl<
                     CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
                 })?;
         }
-
-        // assign the verifier data
-        pw.set_verifier_data_target(&targets.verifier_data, verifier_only_data)
-            .map_err(|e| {
-                CircuitError::VerifierDataTargetAssignmentError(e.to_string())
-            })?;
 
         Ok(())
     }

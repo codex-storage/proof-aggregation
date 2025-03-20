@@ -46,13 +46,14 @@ impl<
 {
 
     pub fn build(
-        inner_common_data: CommonCircuitData<F,D>
+        inner_common_data: CommonCircuitData<F,D>,
+        inner_verifier_data: VerifierOnlyCircuitData<C, D>,
     ) -> Result<Self> {
         // build leaf with standard recursion config
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let leaf = LeafCircuit::<_,D,_,_,N>::new(inner_common_data.clone());
+        let leaf = LeafCircuit::<_,D,_,_,N>::new(inner_common_data.clone(), inner_verifier_data.clone());
         let leaf_targets = leaf.build(&mut builder)?;
         let leaf_circ_data = builder.build::<C>();
         // println!("leaf circuit size = {:?}", leaf_circ_data.common.degree_bits());
@@ -61,7 +62,7 @@ impl<
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let node = NodeCircuit::<_,D,_,_,M>::new(leaf_circ_data.common.clone());
+        let node = NodeCircuit::<_,D,_,_,M>::new(leaf_circ_data.common.clone(), leaf_circ_data.verifier_only.clone());
         let node_targets = node.build(&mut builder)?;
         let node_circ_data = builder.build::<C>();
         // println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
@@ -70,7 +71,7 @@ impl<
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let node_common = node_circ_data.common.clone();
-        let compression_circ = CompressionCircuit::new(node_common);
+        let compression_circ = CompressionCircuit::new(node_common, node_circ_data.verifier_only.clone());
         let compression_targets = compression_circ.build(&mut builder)?;
         let compression_circ_data = builder.build::<C>();
         // println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
@@ -108,13 +109,12 @@ impl<
     pub fn prove_tree_and_compress(
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
-        inner_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<(ProofWithPublicInputs<F, C, D>)>
     {
         let proof =
-            self.prove_tree(proofs_with_pi, inner_verifier_only_data)?;
+            self.prove_tree(proofs_with_pi)?;
         let mut pw = PartialWitness::<F>::new();
-        self.compression.assign_targets(&mut pw, &self.compression_targets, proof, &self.node_circ_data.verifier_only)?;
+        self.compression.assign_targets(&mut pw, &self.compression_targets, proof)?;
 
         self.compression_circ_data.prove(pw).map_err(
             |e| CircuitError::InvalidProofError(e.to_string())
@@ -125,7 +125,6 @@ impl<
     (
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
-        inner_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<(ProofWithPublicInputs<F, C, D>)>
     {
         if proofs_with_pi.len() % 2 != 0 {
@@ -137,12 +136,11 @@ impl<
         // process leaves
         let leaf_proofs = self.get_leaf_proofs(
             proofs_with_pi,
-            inner_verifier_only_data,
         )?;
 
         // process nodes
-        let (root_proof, vd) =
-            self.prove(&leaf_proofs,&self.leaf_circ_data.verifier_only)?;
+        let (root_proof, _vd) =
+            self.prove(&leaf_proofs,&self.leaf_circ_data.verifier_only, 0)?;
 
         Ok(root_proof)
     }
@@ -151,7 +149,6 @@ impl<
     (
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
-        inner_verifier_only_data: &VerifierOnlyCircuitData<C, D>,
     ) -> Result<(Vec<ProofWithPublicInputs<F, C, D>>)> {
 
         let mut leaf_proofs = vec![];
@@ -159,7 +156,7 @@ impl<
         for proof in proofs_with_pi.chunks(N){
             let mut pw = PartialWitness::<F>::new();
 
-            self.leaf.assign_targets(&mut pw,&self.leaf_targets,proof,inner_verifier_only_data)?;
+            self.leaf.assign_targets(&mut pw,&self.leaf_targets,proof)?;
             let proof = self.leaf_circ_data.prove(pw).unwrap();
             leaf_proofs.push(proof);
         }
@@ -172,6 +169,7 @@ impl<
         &self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
         verifier_only_data: &VerifierOnlyCircuitData<C, D>,
+        level: usize,
     ) -> Result<(ProofWithPublicInputs<F, C, D>, VerifierOnlyCircuitData<C, D>)> where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
     {
@@ -182,6 +180,8 @@ impl<
 
         let mut new_proofs = vec![];
 
+        let condition = if level == 0 {false} else {true};
+
         for chunk in proofs_with_pi.chunks(M) {
 
             let mut inner_pw = PartialWitness::new();
@@ -191,6 +191,7 @@ impl<
                 &self.node_targets,
                 chunk,
                 verifier_only_data,
+                condition
             )?;
 
             let proof = self.node_circ_data.prove(inner_pw)
@@ -198,7 +199,7 @@ impl<
             new_proofs.push(proof);
         }
 
-        self.prove(&new_proofs, &self.node_circ_data.verifier_only)
+        self.prove(&new_proofs, &self.node_circ_data.verifier_only, level+1)
     }
 
     pub fn verify_proof(
@@ -219,18 +220,17 @@ impl<
         &self,
         proof: ProofWithPublicInputs<F, C, D>,
         inner_public_input: Vec<Vec<F>>,
-        inner_verifier_data: &VerifierCircuitData<F, C, D>,
         is_compressed: bool,
     ) -> Result<()>{
         let public_input = proof.public_inputs.clone();
         if is_compressed{
             self.compression_circ_data.verify(proof)
                 .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
-            self.verify_public_input(public_input, inner_public_input, inner_verifier_data, is_compressed)
+            self.verify_public_input(public_input, inner_public_input)
         }else {
             self.node_circ_data.verify(proof)
                 .map_err(|e| CircuitError::InvalidProofError(e.to_string()))?;
-            self.verify_public_input(public_input, inner_public_input, inner_verifier_data, is_compressed)
+            self.verify_public_input(public_input, inner_public_input)
         }
     }
 
@@ -238,23 +238,15 @@ impl<
         &self,
         public_input: Vec<F>,
         inner_public_input: Vec<Vec<F>>,
-        inner_verifier_data: &VerifierCircuitData<F, C, D>,
-        is_compressed: bool,
     ) -> Result<()>{
         assert_eq!(public_input.len(), 8);
 
         let given_input_hash = &public_input[0..4];
         let given_vd_hash = &public_input[4..8];
 
-        let inner_hash = Self::get_hash_of_verifier_data(&inner_verifier_data);
-
-        let leaf_hash = Self::get_hash_of_verifier_data(&self.leaf_circ_data.verifier_data());
-
-        let node_hash = Self::get_hash_of_verifier_data(&self.node_circ_data.verifier_data());
-
+        let node_hash = get_hash_of_verifier_data::<F,D,C,H>(&self.node_circ_data.verifier_data());
 
         let mut pub_in_hashes = vec![];
-        let mut inner_vd_hashes = vec![];
         for pub_in in inner_public_input.chunks(N){
             let pub_in_flat: Vec<F> = pub_in
                 .iter()
@@ -262,64 +254,50 @@ impl<
                 .collect();
             let hash = H::hash_no_pad(&pub_in_flat);
             pub_in_hashes.push(hash);
-            inner_vd_hashes.push(inner_hash.clone());
         }
 
         let mut level = 0;
         while pub_in_hashes.len() > 1 {
             let mut next_level_pi_hashes = Vec::new();
-            let mut next_level_vd_hashes = Vec::new();
-            for (pi_chunk, vd_chunk) in pub_in_hashes.chunks(M).zip(inner_vd_hashes.chunks(M)) {
+            for pi_chunk in pub_in_hashes.chunks(M) {
                 // collect field elements
                 let pi_chunk_f: Vec<F> = pi_chunk.iter()
                     .flat_map(|h| h.elements.iter().cloned())
                     .collect();
-                let mut vd_chunk_f: Vec<F> = vd_chunk.iter()
-                    .flat_map(|h| h.elements.iter().cloned())
-                    .collect();
-                let hash_n = if level == 0 {leaf_hash} else{node_hash};
-                vd_chunk_f.extend_from_slice(&hash_n.elements);
-
-                // Compute Poseidon2 hash of the concatenated chunk
+                // Compute hash of the concatenated chunk
                 let pi_hash = H::hash_no_pad(&pi_chunk_f);
-                let vd_hash = H::hash_no_pad(&vd_chunk_f);
                 next_level_pi_hashes.push(pi_hash);
-                next_level_vd_hashes.push(vd_hash);
             }
             pub_in_hashes = next_level_pi_hashes;
-            inner_vd_hashes = next_level_vd_hashes;
             level +=1;
         }
 
         //check expected hash
         let expected_pi_hash = pub_in_hashes[0];
-        let mut expected_vd_hash = inner_vd_hashes[0];
-
-        if is_compressed {
-            let mut vd_to_hash = vec![];
-            vd_to_hash.extend_from_slice(&expected_vd_hash.elements);
-            vd_to_hash.extend_from_slice(&node_hash.elements);
-            expected_vd_hash = H::hash_no_pad(&vd_to_hash);
-        }
 
         assert_eq!(given_input_hash, expected_pi_hash.elements);
-        assert_eq!(given_vd_hash, expected_vd_hash.elements);
+        assert_eq!(given_vd_hash, node_hash.elements);
         Ok(())
     }
-
-    /// helper fn to generate hash of verifier data
-    fn get_hash_of_verifier_data(verifier_data: &VerifierCircuitData<F, C, D>) -> HashOut<F>{
-        let mut vd = vec![];
-        let digest: &HashOut<F> = &verifier_data.verifier_only.circuit_digest;
-        let caps = &verifier_data.verifier_only.constants_sigmas_cap;
-        vd.extend_from_slice(&digest.elements);
-        for i in 0..verifier_data.common.config.fri_config.num_cap_elements() {
-            let cap_hash = caps.0[i] as HashOut<F>;
-            vd.extend_from_slice(&cap_hash.elements);
-        }
-
-        H::hash_no_pad(&vd)
-    }
-
 }
 
+/// helper fn to generate hash of verifier data
+pub fn get_hash_of_verifier_data<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+    H: AlgebraicHasher<F>,
+>(verifier_data: &VerifierCircuitData<F, C, D>) -> HashOut<F> where
+    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
+{
+    let mut vd = vec![];
+    let digest: &HashOut<F> = &verifier_data.verifier_only.circuit_digest;
+    let caps = &verifier_data.verifier_only.constants_sigmas_cap;
+    vd.extend_from_slice(&digest.elements);
+    for i in 0..verifier_data.common.config.fri_config.num_cap_elements() {
+        let cap_hash = caps.0[i] as HashOut<F>;
+        vd.extend_from_slice(&cap_hash.elements);
+    }
+
+    H::hash_no_pad(&vd)
+}
