@@ -1,6 +1,4 @@
-use std::fs;
 use anyhow::Result;
-use std::time::Instant;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use plonky2::field::extension::Extendable;
 use plonky2::field::goldilocks_field::GoldilocksField;
@@ -33,7 +31,6 @@ pub struct PoseidonCircuit<
 > {
     public_input: Vec<Target>,
     circuit_data: CircuitData<F, C, D>,
-    num_powers: usize,
     _hasher: PhantomData<H>,
 }
 
@@ -60,7 +57,7 @@ impl<
 
         state.set_from_slice(&initial, 0);
 
-        for k in 0..num_hashes {
+        for _k in 0..num_hashes {
             state = builder.permute::<H>(state);
         }
 
@@ -74,17 +71,16 @@ impl<
         Self {
             public_input: initial,
             circuit_data: data,
-            num_powers: num_hashes,
             _hasher: PhantomData::<H>,
         }
     }
 
-    pub fn generate_proof(&self, init: F) -> Result<ProofWithPublicInputs<F, C, D>> {
+    pub fn generate_proof(&self, init: Vec<F>) -> Result<ProofWithPublicInputs<F, C, D>> {
         const T: usize = 12;
 
         let mut pw = PartialWitness::<F>::new();
         for j in 0..T {
-            pw.set_target(self.public_input[j], F::from_canonical_usize(j));
+            pw.set_target(self.public_input[j], init[j])?;
         }
 
         let proof = self.circuit_data.prove(pw).unwrap();
@@ -135,14 +131,14 @@ fn bench_poseidon2_perm<
             format!("prove circuit with 2^{} permutations", log_num_hashes).as_str(),
             |b| {
                 b.iter_batched(
-                    || F::rand(),
+                    || F::rand_vec(12),
                     |init| poseidon_circuit.generate_proof(init).unwrap(),
                     BatchSize::PerIteration,
                 )
             },
         );
 
-        let proof = poseidon_circuit.generate_proof(F::rand()).unwrap();
+        let proof = poseidon_circuit.generate_proof(F::rand_vec(12)).unwrap();
 
         pretty_print!("proof size: {}", proof.to_bytes().len());
 

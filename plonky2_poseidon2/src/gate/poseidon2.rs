@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn generated_output() {
+    fn generated_output() -> Result<()>{
         const D: usize = 2;
         type C = Poseidon2GoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
@@ -547,7 +547,7 @@ mod tests {
                 column: Gate::WIRE_SWAP,
             },
             F::ZERO,
-        );
+        )?;
         for i in 0..SPONGE_WIDTH {
             inputs.set_wire(
                 Wire {
@@ -555,7 +555,7 @@ mod tests {
                     column: Gate::wire_input(i),
                 },
                 permutation_inputs[i],
-            );
+            )?;
         }
 
         let witness = generate_partial_witness(inputs, &circuit.prover_only, &circuit.common).unwrap();
@@ -568,7 +568,9 @@ mod tests {
             });
             println!("out {} = {}", i, out.clone());
             assert_eq!(out, expected_outputs[i]);
-        }
+        };
+
+        Ok(())
     }
 
     #[test]
@@ -588,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn test_proof() {
+    fn test_proof() -> Result<()>{
         use plonky2_field::types::Sample;
         use plonky2::gates::gate::Gate;
         use plonky2::hash::hash_types::HashOut;
@@ -607,10 +609,10 @@ mod tests {
 
         let wires_t = builder.add_virtual_extension_targets(wires.len());
         let constants_t = builder.add_virtual_extension_targets(constants.len());
-        pw.set_extension_targets(&wires_t, &wires);
-        pw.set_extension_targets(&constants_t, &constants);
+        pw.set_extension_targets(&wires_t, &wires)?;
+        pw.set_extension_targets(&constants_t, &constants)?;
         let public_inputs_hash_t = builder.add_virtual_hash();
-        pw.set_hash_target(public_inputs_hash_t, public_inputs_hash);
+        pw.set_hash_target(public_inputs_hash_t, public_inputs_hash)?;
 
         let vars = EvaluationVars {
             local_constants: &constants,
@@ -625,9 +627,10 @@ mod tests {
             public_inputs_hash: &public_inputs_hash_t,
         };
         let evals_t = gate.eval_unfiltered_circuit(&mut builder, vars_t);
-        pw.set_extension_targets(&evals_t, &evals);
+        pw.set_extension_targets(&evals_t, &evals)?;
         let data = builder.build::<C>();
         let proof = data.prove(pw);
         assert!(proof.is_ok());
+        Ok(())
     }
 }

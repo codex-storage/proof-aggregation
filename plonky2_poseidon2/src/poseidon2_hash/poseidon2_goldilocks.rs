@@ -151,17 +151,14 @@ impl Poseidon2 for GoldilocksField {
 mod tests {
 
     use plonky2_field::goldilocks_field::GoldilocksField as F;
-    use plonky2_field::types::{Field, PrimeField64};
     use crate::poseidon2_hash::poseidon2::test_helpers::check_test_vectors;
 
     #[test]
-    fn p2new_test_vectors() {
+    fn test_vectors() {
         // Test inputs are:
         // 1. range 0..WIDTH
         // expected output calculated with reference implementation here:
         // https://github.com/HorizenLabs/poseidon2
-
-        let neg_one: u64 = F::NEG_ONE.to_canonical_u64();
 
         #[rustfmt::skip]
         let test_vectors12: Vec<([u64; 12], [u64; 12])> = vec![
