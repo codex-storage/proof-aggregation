@@ -11,7 +11,6 @@ use plonky2::{
     field::extension::Extendable,
     hash::{
         hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField},
-        hashing::PlonkyPermutation,
     },
     iop::{
         target::{BoolTarget, Target},
@@ -19,7 +18,6 @@ use plonky2::{
     },
     plonk::circuit_builder::CircuitBuilder,
 };
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
@@ -33,6 +31,7 @@ use crate::{
     Result,
     error::CircuitError,
 };
+use crate::circuit_helper::Plonky2Circuit;
 
 /// circuit for sampling a slot in a dataset merkle tree
 #[derive(Clone, Debug)]
@@ -168,7 +167,6 @@ impl<
         // Create virtual target for slot root and index
         let slot_root = builder.add_virtual_hash();
         let slot_index = builder.add_virtual_target();// public input
-        // let slot_index = builder.add_virtual_public_input();// public input
 
         // dataset path bits (binary decomposition of leaf_index)
         let d_path_bits = builder.split_le(slot_index,max_log2_n_slots);
@@ -200,7 +198,6 @@ impl<
 
         // expected Merkle root
         let d_expected_root = builder.add_virtual_hash(); // public input
-        // let d_expected_root = builder.add_virtual_hash_public_input(); // public input
 
         // check equality with expected root
         for i in 0..NUM_HASH_OUT_ELTS {
@@ -212,7 +209,6 @@ impl<
         let mut data_targets =vec![];
         let mut slot_sample_proofs = vec![];
         let entropy_target = builder.add_virtual_hash(); // public input
-        // let entropy_target = builder.add_virtual_hash_public_input(); // public input
 
         // virtual target for n_cells_per_slot
         let n_cells_per_slot = builder.add_virtual_target();
@@ -229,7 +225,7 @@ impl<
         let mut b_mask_bits = builder.split_le(slot_last_index,max_depth);
 
         // last and mask bits for the slot tree
-        let mut s_last_bits = b_last_bits.split_off(block_tree_depth);
+        let s_last_bits = b_last_bits.split_off(block_tree_depth);
         let mut s_mask_bits = b_mask_bits.split_off(block_tree_depth);
 
         // pad mask bits with 0
@@ -238,7 +234,7 @@ impl<
 
         for i in 0..n_samples{
             // cell data targets
-            let mut data_i = (0..n_field_elems_per_cell).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
+            let data_i = (0..n_field_elems_per_cell).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
             // hash the cell data
             let mut hash_inputs:Vec<Target>= Vec::new();
             hash_inputs.extend_from_slice(&data_i);
@@ -256,13 +252,13 @@ impl<
             }
             // paths for block and slot
             let mut b_path_bits = self.calculate_cell_index_bits(builder, &entropy_target, &d_targets.leaf, &ctr, mask_bits.clone())?;
-            let mut s_path_bits = b_path_bits.split_off(block_tree_depth);
+            let s_path_bits = b_path_bits.split_off(block_tree_depth);
 
-            let mut b_merkle_path = MerkleProofTarget {
+            let b_merkle_path = MerkleProofTarget {
                 path: (0..block_tree_depth).map(|_| builder.add_virtual_hash()).collect(),
             };
 
-            let mut s_merkle_path = MerkleProofTarget {
+            let s_merkle_path = MerkleProofTarget {
                 path: (0..(max_depth - block_tree_depth)).map(|_| builder.add_virtual_hash()).collect(),
             };
 
@@ -323,7 +319,7 @@ impl<
     }
 
     /// calculate the cell index = H( entropy | slotRoot | counter ) `mod` nCells
-    pub fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Result<Vec<BoolTarget>> {
+    fn calculate_cell_index_bits(&self, builder: &mut CircuitBuilder<F, D>, entropy: &HashOutTarget, slot_root: &HashOutTarget, ctr: &HashOutTarget, mask_bits: Vec<BoolTarget>) -> Result<Vec<BoolTarget>> {
         let mut hash_inputs:Vec<Target>= Vec::new();
         hash_inputs.extend_from_slice(&entropy.elements);
         hash_inputs.extend_from_slice(&slot_root.elements);
@@ -418,6 +414,30 @@ impl<
         }
 
         Ok(())
+    }
+
+}
+
+/// Implements the Plonky2Circuit trait
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    C: GenericConfig<D, F = F>,
+    const D: usize,
+    H: AlgebraicHasher<F>,
+> Plonky2Circuit<F,C,D> for SampleCircuit<F,D,H> {
+    type Targets = SampleTargets;
+    type Input = SampleCircuitInput<F, D>;
+
+    fn add_targets(&self, builder: &mut CircuitBuilder<F, D>, register_pi: bool) -> Result<Self::Targets> {
+        let targets = if register_pi {
+            self.sample_slot_circuit_with_public_input(builder)
+        } else { self.sample_slot_circuit(builder) };
+
+        targets
+    }
+
+    fn assign_targets(&self, pw: &mut PartialWitness<F>, targets: &Self::Targets, input: &Self::Input) -> Result<()> {
+        self.sample_slot_assign_witness(pw,targets,input)
     }
 
 }
