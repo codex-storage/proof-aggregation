@@ -325,7 +325,7 @@ pub trait Poseidon2: PrimeField64 {
             .collect::<Vec<_>>();
 
         result.try_into().unwrap_or_else(|v: Vec<ExtensionTarget<D>>| {
-            panic!("Expected a Vec of length {}", SPONGE_WIDTH)
+            panic!("Expected a Vec of length {}, but got {}", SPONGE_WIDTH, v.len())
         })
     }
 
@@ -525,14 +525,12 @@ pub(crate) mod test_helpers {
 
 #[cfg(test)]
 pub(crate) mod test_consistency {
-    use plonky2::hash::hashing::PlonkyPermutation;
-    use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use crate::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Permutation, SPONGE_WIDTH};
+    use crate::poseidon2_hash::poseidon2::{Poseidon2, SPONGE_WIDTH};
     use plonky2_field::goldilocks_field::GoldilocksField as F;
     use plonky2_field::types::Field;
 
     #[test]
-    pub(crate) fn p2new_check_con()
+    pub(crate) fn check_poseidon2_consistency()
     {
         let mut input = [F::ZERO; SPONGE_WIDTH];
         for i in 0..SPONGE_WIDTH {

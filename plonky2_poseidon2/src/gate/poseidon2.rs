@@ -3,7 +3,6 @@
 //! https://github.com/0xPolygonZero/plonky2/blob/main/plonky2/src/gates/poseidon.rs
 //!
 use core::marker::PhantomData;
-use std::ops::Mul;
 use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2::gates::gate::Gate;
@@ -407,7 +406,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
 
         for i in 0..4 {
             let delta_i = swap_value * (state[i + 4] - state[i]);
-            out_buffer.set_wire(local_wire(Poseidon2Gate::<F, D>::wire_delta(i)), delta_i);
+            out_buffer.set_wire(local_wire(Poseidon2Gate::<F, D>::wire_delta(i)), delta_i)?;
         }
 
         if swap_value == F::ONE {
@@ -429,7 +428,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
                     out_buffer.set_wire(
                         local_wire(Poseidon2Gate::<F, D>::wire_first_full_round(r, i)),
                         state[i],
-                    );
+                    )?;
                 }
             }
             <F as Poseidon2>::sbox_layer_field(&mut state);
@@ -442,7 +441,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
             out_buffer.set_wire(
                 local_wire(Poseidon2Gate::<F, D>::wire_partial_round(r)),
                 state[0],
-            );
+            )?;
             state[0] = <F as Poseidon2>::sbox_p(state[0]);
             <F as Poseidon2>::matmul_internal_field(&mut state, &<F as Poseidon2>::MAT_DIAG12_M_1);
         }
@@ -458,7 +457,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
                         i,
                     )),
                     state[i],
-                );
+                )?;
             }
 
             <F as Poseidon2>::sbox_layer_field(&mut state);
@@ -466,7 +465,7 @@ impl<F: RichField + Extendable<D> + Poseidon2, const D: usize> SimpleGenerator<F
         }
 
         for i in 0..SPONGE_WIDTH {
-            out_buffer.set_wire(local_wire(Poseidon2Gate::<F, D>::wire_output(i)), state[i]);
+            out_buffer.set_wire(local_wire(Poseidon2Gate::<F, D>::wire_output(i)), state[i])?;
         }
         Ok(())
     }
