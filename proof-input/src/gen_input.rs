@@ -11,7 +11,6 @@ use plonky2::iop::witness::PartialWitness;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use codex_plonky2_circuits::circuits::params::CircuitParams;
 use crate::data_structs::DatasetTree;
 use crate::sponge::hash_bytes_no_padding;
 use crate::params::{C, D, F, HF};
@@ -220,12 +219,8 @@ pub fn get_m_circ_input<const M: usize>(params: InputParams) -> [SampleCircuitIn
 mod tests {
     use std::time::Instant;
     use super::*;
-    use plonky2::plonk::circuit_data::CircuitConfig;
-    use plonky2::iop::witness::PartialWitness;
-    use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use codex_plonky2_circuits::circuits::params::CircuitParams;
+    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
-    // use crate::params::{C, D, F};
 
     // Test sample cells (non-circuit)
     #[test]
@@ -241,37 +236,26 @@ mod tests {
         // get input
         let mut params = Params::default();
         let mut input_params = params.input_params;
-        input_params.n_samples = 10;
-        let circ_input = gen_testing_circuit_input::<F,D>(&input_params);
-
-        // Create the circuit
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
         let mut circuit_params = params.circuit_params;
+        input_params.n_samples = 10;
         circuit_params.n_samples = 10;
+        let circ_input = gen_testing_circuit_input::<F,D>(&input_params);
 
         // build the circuit
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
-
-        // Create a PartialWitness and assign
-        let mut pw = PartialWitness::new();
-
-        // assign a witness
-        circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input)?;
-
-        // Build the circuit
-        let data = builder.build::<C>();
+        let (targets, data) = circ.build_with_standard_config()?;
         println!("circuit size = {:?}", data.common.degree_bits());
 
-        // Prove the circuit with the assigned witness
+        // separate the prover and verifier
+        let verifier_data = data.verifier_data();
+        let prover_data = data.prover_data();
+
+        // Prove the circuit using the circuit input
         let start_time = Instant::now();
-        let proof_with_pis = data.prove(pw)?;
+        let proof_with_pis: ProofWithPublicInputs<F, C, D> = circ.prove(&targets, &circ_input, &prover_data)?;
         println!("prove_time = {:?}", start_time.elapsed());
 
         // Verify the proof
-        let verifier_data = data.verifier_data();
         assert!(
             verifier_data.verify(proof_with_pis).is_ok(),
             "Merkle proof verification failed"

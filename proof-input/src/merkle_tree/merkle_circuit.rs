@@ -203,7 +203,7 @@ mod tests {
         // create a PartialWitness and assign
         let mut pw = PartialWitness::new();
         assign_witness(&mut pw, &mut targets, circuit_input)?;
-        pw.set_hash_target(expected_root, tree.root().unwrap());
+        pw.set_hash_target(expected_root, tree.root().unwrap())?;
 
         // build the circuit
         let data = builder.build::<C>();
@@ -290,7 +290,7 @@ mod tests {
             };
 
             assign_witness(&mut pw, &mut targets, circuit_input)?;
-            pw.set_hash_target(expected_root_target, expected_root);
+            pw.set_hash_target(expected_root_target, expected_root)?;
 
             let proof_with_pis = data.prove(pw)?;
 

@@ -35,8 +35,8 @@ pub fn hash_n_to_m_with_padding<
     let domsep_value = F::from_canonical_u64(rate as u64 + 256 * 12 + 65536 * 63);
     perm.set_elt(domsep_value, 8);
 
-    let N = inputs.len();
-    let num_chunks = (N + rate) / rate; // Calculate number of chunks with 10* padding
+    let input_n = inputs.len();
+    let num_chunks = (input_n + rate) / rate; // Calculate number of chunks with 10* padding
     let mut input_iter = inputs.iter();
 
     // Process all chunks except the last one
@@ -59,7 +59,7 @@ pub fn hash_n_to_m_with_padding<
     }
 
     // Process the last chunk with 10* padding
-    let rem = num_chunks * rate - N; // Number of padding elements (0 < rem <= rate)
+    let rem = num_chunks * rate - input_n; // Number of padding elements (0 < rem <= rate)
     let ofs = rate - rem;            // Offset where padding starts
 
     let mut last_chunk = Vec::with_capacity(rate);
@@ -123,7 +123,6 @@ pub fn hash_bytes_to_m_no_padding<
     let rate = P::RATE;
     let width = P::WIDTH; // rate + capacity
     let zero = F::ZERO;
-    let one = F::ONE;
     let mut perm = P::new(core::iter::repeat(zero).take(width));
 
     // Set the domain separator at index 8

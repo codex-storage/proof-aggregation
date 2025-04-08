@@ -193,7 +193,7 @@ impl<
         let mut i = 0;
 
         for p in &path {
-            let bottom = if(i==0){
+            let bottom = if i==0 {
                 KEY_BOTTOM_LAYER
             }else{
                 KEY_NONE

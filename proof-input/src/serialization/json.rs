@@ -10,12 +10,12 @@ use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
-use plonky2::plonk::proof::CompressedProofWithPublicInputs;
+use plonky2::plonk::proof::ProofWithPublicInputs;
 use serde_json::to_writer_pretty;
 
 // Function to export proof with public input to json file
 fn export_proof_with_pi_to_json<F, C, const D: usize>(
-    instance: &CompressedProofWithPublicInputs<F, C, D>,
+    instance: &ProofWithPublicInputs<F, C, D>,
     path: &str,
 ) -> io::Result<()>
     where
@@ -50,7 +50,8 @@ mod tests {
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
+    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, ProverCircuitData, VerifierCircuitData};
+    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
     use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
     use crate::gen_input::verify_circuit_input;
     use crate::serialization::circuit_input::{export_circ_input_to_json, generate_and_export_circ_input_to_json, import_circ_input_from_json};
@@ -72,7 +73,7 @@ mod tests {
     fn test_import_circ_input_from_json() -> anyhow::Result<()> {
         // Import the circuit input from the JSON file
         // NOTE: MAKE SURE THE FILE EXISTS
-        let circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
+        let _circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
         println!("circuit input imported successfully");
 
         Ok(())
@@ -108,36 +109,24 @@ mod tests {
     #[test]
     fn test_read_json_and_run_circuit() -> anyhow::Result<()> {
         // Create the circuit
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
         let circuit_params = Params::default().circuit_params;
 
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
+        let (targets, data) = circ.build_with_standard_config()?;
 
-        // Create a PartialWitness and assign
-        let mut pw = PartialWitness::new();
+        let verifier_data: VerifierCircuitData<F, C, D> = data.verifier_data();
+        let prover_data: ProverCircuitData<F, C, D> = data.prover_data();
+        println!("circuit size = {:?}", verifier_data.common.degree_bits());
 
         // Import the circuit input from JSON
         let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
         println!("circuit input imported from input.json");
 
-        circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input)?;
-
-        // Build the circuit
-        let data = builder.build::<C>();
-        println!("circuit size = {:?}", data.common.degree_bits());
-
-        // Prove the circuit with the assigned witness
-        let start_time = Instant::now();
-        let proof_with_pis = data.prove(pw)?;
-        println!("prove_time = {:?}", start_time.elapsed());
+        let proof = circ.prove(&targets, &imported_circ_input, &prover_data)?;
 
         // Verify the proof
-        let verifier_data = data.verifier_data();
         assert!(
-            verifier_data.verify(proof_with_pis).is_ok(),
+            verifier_data.verify(proof).is_ok(),
             "Merkle proof verification failed"
         );
 
@@ -171,27 +160,20 @@ mod tests {
         let input_params = params.input_params;
 
         // Create the circuit
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
         let circuit_params = params.circuit_params;
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
+        let (targets, data) = circ.build_with_standard_config()?;
+        println!("circuit size = {:?}", data.common.degree_bits());
 
-        // Create a PartialWitness and assign
-        let mut pw = PartialWitness::new();
+        let verifier_data: VerifierCircuitData<F, C, D> = data.verifier_data();
+        let prover_data: ProverCircuitData<F, C, D> = data.prover_data();
 
         // gen circ input
         let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&input_params);
-        circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input)?;
-
-        // Build the circuit
-        let data = builder.build::<C>();
-        println!("circuit size = {:?}", data.common.degree_bits());
 
         let gate_serializer = DefaultGateSerializer;
         let generator_serializer =DefaultGeneratorSerializer::<C, D>::default();
-        let data_bytes = data.to_bytes(&gate_serializer, &generator_serializer).unwrap();
+        let data_bytes = prover_data.to_bytes(&gate_serializer, &generator_serializer).unwrap();
 
         let file_path = "circ_data.bin";
         // Write data to the file
@@ -200,15 +182,14 @@ mod tests {
 
         // Read data back from the file
         let read_data = read_bytes_from_file(file_path).unwrap();
-        let data = CircuitData::<F,C,D>::from_bytes(&read_data, &gate_serializer, &generator_serializer).unwrap();
+        let prover_data = ProverCircuitData::<F,C,D>::from_bytes(&read_data, &gate_serializer, &generator_serializer).unwrap();
 
         // Prove the circuit with the assigned witness
         let start_time = Instant::now();
-        let proof_with_pis = data.prove(pw)?;
+        let proof_with_pis = circ.prove(&targets, &imported_circ_input, &prover_data)?;
         println!("prove_time = {:?}", start_time.elapsed());
 
         // Verify the proof
-        let verifier_data = data.verifier_data();
         assert!(
             verifier_data.verify(proof_with_pis).is_ok(),
             "Merkle proof verification failed"
@@ -224,37 +205,28 @@ mod tests {
         let input_params = params.input_params;
 
         // Create the circuit
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
         let circuit_params = params.circuit_params;
         let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
-        let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
+        let (targets, data) = circ.build_with_standard_config()?;
+        println!("circuit size = {:?}", data.common.degree_bits());
 
-        // Create a PartialWitness and assign
-        let mut pw = PartialWitness::new();
+        let verifier_data: VerifierCircuitData<F, C, D> = data.verifier_data();
+        let prover_data: ProverCircuitData<F, C, D> = data.prover_data();
 
         // gen circ input
         let imported_circ_input: SampleCircuitInput<F, D> = gen_testing_circuit_input::<F,D>(&input_params);
-        circ.sample_slot_assign_witness(&mut pw, &targets, &imported_circ_input)?;
-
-        // Build the circuit
-        let data = builder.build::<C>();
-        println!("circuit size = {:?}", data.common.degree_bits());
 
         // Prove the circuit with the assigned witness
         let start_time = Instant::now();
-        let proof_with_pis = data.prove(pw)?;
+        let proof_with_pis = circ.prove(&targets, &imported_circ_input, &prover_data)?;
         println!("prove_time = {:?}", start_time.elapsed());
         println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());
 
-        let compressed_proof_with_pi = data.compress(proof_with_pis.clone())?;
         let filename = "proof_with_pi.json";
-        export_proof_with_pi_to_json(&compressed_proof_with_pi,filename)?;
-        println!("Proof size: {} bytes", compressed_proof_with_pi.to_bytes().len());
+        export_proof_with_pi_to_json(&proof_with_pis,filename)?;
+        println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());
 
         // Verify the proof
-        let verifier_data = data.verifier_data();
         assert!(
             verifier_data.verify(proof_with_pis).is_ok(),
             "Merkle proof verification failed"
