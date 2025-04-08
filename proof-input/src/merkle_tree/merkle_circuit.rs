@@ -1,16 +1,11 @@
 use codex_plonky2_circuits::Result;
 use plonky2::field::extension::Extendable;
-use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
-use plonky2::hash::hashing::PlonkyPermutation;
-use plonky2::hash::poseidon::PoseidonHash;
-use plonky2::iop::witness::{PartialWitness, Witness, WitnessWrite};
+use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::CircuitConfig;
-use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hasher, PoseidonGoldilocksConfig};
+use plonky2::plonk::config::{AlgebraicHasher, Hasher};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use serde::Serialize;
 use codex_plonky2_circuits::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
 use codex_plonky2_circuits::circuits::utils::{assign_bool_targets, assign_hash_out_targets};
 use codex_plonky2_circuits::error::CircuitError;
@@ -169,9 +164,6 @@ mod tests {
         // sanity check:
         let check = proof.verify(tree.layers[0][leaf_index],tree.root().unwrap()).unwrap();
         assert_eq!(check, true);
-
-        // get the expected Merkle root
-        let expected_root = tree.root()?;
 
         // create the circuit
         let config = CircuitConfig::standard_recursion_config();

@@ -9,7 +9,6 @@ use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 use std::ops::Shr;
 use plonky2_field::extension::Extendable;
-use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::key_compress::key_compress;
 use crate::params::HF;

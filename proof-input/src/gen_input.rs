@@ -1,7 +1,5 @@
 use plonky2::hash::hash_types::RichField;
-use plonky2::plonk::config::{GenericConfig, Hasher};
 use plonky2_field::extension::Extendable;
-use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::params::{Params,InputParams};
 use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
@@ -156,8 +154,8 @@ pub fn build_circuit(n_samples: usize, slot_index: usize) -> anyhow::Result<(Cir
 pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow::Result<(CircuitData<F, C, D>, PartialWitness<F>, SampleTargets)>{
     // get input
     let mut params = Params::default();
+    params.set_n_samples(n_samples);
     let mut input_params = params.input_params;
-    input_params.n_samples = n_samples;
     input_params.testing_slot_index = slot_index;
     let circ_input = gen_testing_circuit_input::<F,D>(&input_params);
 
@@ -165,12 +163,11 @@ pub fn build_circuit_with_targets(n_samples: usize, slot_index: usize) -> anyhow
     let config = CircuitConfig::standard_recursion_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
-    let mut circuit_params = params.circuit_params;
-    circuit_params.n_samples = n_samples;
+    let circuit_params = params.circuit_params;
 
     // build the circuit
     let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
-    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
+    let targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
 
     // Create a PartialWitness and assign
     let mut pw = PartialWitness::new();
@@ -235,10 +232,9 @@ mod tests {
     fn test_proof_in_circuit() -> anyhow::Result<()> {
         // get input
         let mut params = Params::default();
-        let mut input_params = params.input_params;
-        let mut circuit_params = params.circuit_params;
-        input_params.n_samples = 10;
-        circuit_params.n_samples = 10;
+        params.set_n_samples(10);
+        let input_params = params.input_params;
+        let circuit_params = params.circuit_params;
         let circ_input = gen_testing_circuit_input::<F,D>(&input_params);
 
         // build the circuit

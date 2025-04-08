@@ -3,7 +3,6 @@
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2_field::extension::Extendable;
 use codex_plonky2_circuits::circuits::sample_cells::Cell;
-use plonky2_field::types::Sample;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
 use crate::params::{InputParams, HF};
@@ -236,7 +235,7 @@ impl<
     }
     /// pad the proof with 0s until max_depth
     pub fn pad_proof(merkle_proof: &mut MerkleProof<F,D>, max_depth: usize){
-        for i in merkle_proof.path.len()..max_depth{
+        for _i in merkle_proof.path.len()..max_depth{
             merkle_proof.path.push(HashOut::<F>::ZERO);
         }
     }

@@ -1,5 +1,3 @@
-use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
@@ -28,7 +26,6 @@ mod tests {
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
     use plonky2::hash::hash_types::HashOut;
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
     type F = GoldilocksField;
     const D: usize = 2;

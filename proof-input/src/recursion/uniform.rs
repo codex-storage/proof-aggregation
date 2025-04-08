@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod tests {
-    use plonky2::plonk::config::{ GenericConfig};
     use plonky2::plonk::proof::{ProofWithPublicInputs};
     use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
@@ -34,7 +33,7 @@ mod tests {
         println!("sampling circuit degree bits = {:?}", inner_verifier_data.common.degree_bits());
         let inner_proof = samp_circ.prove(&inner_tar, &one_circ_input, &inner_prover_data)?;
 
-        let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|i| inner_proof.clone()).collect();
+        let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| inner_proof.clone()).collect();
 
         // ------------------- tree --------------------
         // 2-to-1 tree aggregation
@@ -93,7 +92,7 @@ mod tests {
         println!("sampling circuit degree bits = {:?}", inner_verifier_data.common.degree_bits());
         let inner_proof = samp_circ.prove(&inner_tar, &one_circ_input, &inner_prover_data)?;
 
-        let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|i| inner_proof.clone()).collect();
+        let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| inner_proof.clone()).collect();
 
         // ------------------- tree --------------------
         const N: usize = 1;
@@ -133,7 +132,6 @@ mod tests {
         println!("proof size = {:?} bytes", proof.to_bytes().len());
 
         let pub_input_flat: Vec<F> = inner_pi.iter().cloned().flatten().collect();
-        let num_pi = proof.public_inputs.len();
 
         // sanity check on public input
         for (i, e) in proof.public_inputs.iter().enumerate(){

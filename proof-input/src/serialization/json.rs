@@ -1,13 +1,12 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fs::File;
 use std::{fs, io};
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 use std::path::Path;
 use crate::gen_input::gen_testing_circuit_input;
 use plonky2::hash::hash_types::RichField;
-use plonky2::plonk::config::{GenericConfig, Hasher};
+use plonky2::plonk::config::GenericConfig;
 use plonky2_field::extension::Extendable;
-use plonky2_field::types::Field;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
 use plonky2::plonk::proof::ProofWithPublicInputs;
@@ -48,9 +47,7 @@ mod tests {
     use crate::params::{C, D, F, HF, Params};
     use std::time::Instant;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
-    use plonky2::iop::witness::PartialWitness;
-    use plonky2::plonk::circuit_builder::CircuitBuilder;
-    use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, ProverCircuitData, VerifierCircuitData};
+    use plonky2::plonk::circuit_data::{ ProverCircuitData, VerifierCircuitData};
     use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
     use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
     use crate::gen_input::verify_circuit_input;

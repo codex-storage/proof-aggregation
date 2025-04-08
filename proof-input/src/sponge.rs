@@ -3,7 +3,6 @@ use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use plonky2::plonk::config::Hasher;
 use plonky2::hash::hashing::PlonkyPermutation;
-use plonky2_field::types::Field;
 
 /// sponge function similar to the in-circuit one
 /// used here for testing / sanity check

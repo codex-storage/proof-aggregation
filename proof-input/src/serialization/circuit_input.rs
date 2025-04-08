@@ -6,7 +6,6 @@ use anyhow::{anyhow, Error};
 use codex_plonky2_circuits::circuits::sample_cells::{Cell, MerklePath, SampleCircuitInput};
 use std::fs::File;
 use std::io::{BufReader, Write};
-use plonky2_field::types::{Field, PrimeField64};
 use crate::gen_input::gen_testing_circuit_input;
 use crate::params::InputParams;
 
@@ -44,6 +43,7 @@ pub fn generate_and_export_circ_input_to_json<
 
 // Serializable versions of the circuit input
 // naming here is not Rust friendly but only so that its compatible with Nim code.
+#[allow(non_snake_case)]
 #[derive(Serialize, Deserialize)]
 struct SerializableCircuitInput<
 > {

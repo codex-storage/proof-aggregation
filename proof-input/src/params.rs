@@ -1,7 +1,8 @@
 // params for generating input for proof circuit
 
-use plonky2::hash::poseidon::PoseidonHash;
-use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+// use plonky2::hash::poseidon::PoseidonHash;
+// use plonky2::plonk::config::PoseidonGoldilocksConfig;
+use plonky2::plonk::config::GenericConfig;
 use std::env;
 use anyhow::{Result, Context};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
@@ -71,6 +72,14 @@ impl Default for Params {
             circuit_params,
             input_params,
         }
+    }
+}
+
+impl Params {
+    /// helper to set the number of samples to given n for both input and circuit params
+    pub fn set_n_samples(&mut self, n: usize){
+        self.input_params.n_samples = n;
+        self.circuit_params.n_samples = n;
     }
 }
 
