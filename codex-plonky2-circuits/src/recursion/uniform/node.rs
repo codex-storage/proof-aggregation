@@ -3,13 +3,13 @@ use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
+use plonky2::plonk::circuit_data::{CommonCircuitData, VerifierCircuitTarget, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError,Result};
-// use crate::circuits::utils::vec_to_array;
+use crate::circuit_helper::Plonky2Circuit;
 
 /// recursion node circuit - verifies M leaf proofs
 #[derive(Clone, Debug)]
@@ -36,6 +36,17 @@ pub struct NodeTargets<
     pub condition: BoolTarget,
 }
 
+#[derive(Clone, Debug)]
+pub struct NodeInput<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+>{
+    pub node_proofs: Vec<ProofWithPublicInputs<F, C, D>>,
+    pub verifier_only_data: VerifierOnlyCircuitData<C, D>,
+    pub condition: bool,
+}
+
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -57,9 +68,21 @@ impl<
         }
     }
 
-    /// build the leaf circuit
-    pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<NodeTargets<D>> {
+}
 
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+    H: AlgebraicHasher<F>,
+    const M: usize,
+> Plonky2Circuit<F, C, D> for NodeCircuit<F, D, C, H, M> where
+    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
+{
+    type Targets = NodeTargets<D>;
+    type Input = NodeInput<F, D, C>;
+
+    fn add_targets(&self, builder: &mut CircuitBuilder<F, D>, register_pi: bool) -> Result<Self::Targets> {
         let inner_common = self.common_data.clone();
 
         // assert public input is of size 8 - 2 hashout
@@ -77,7 +100,9 @@ impl<
 
         // hash the public input & make it public
         let hash_inner_pub_input = builder.hash_n_to_hash_no_pad::<H>(pub_input);
-        builder.register_public_inputs(&hash_inner_pub_input.elements);
+        if register_pi{
+            builder.register_public_inputs(&hash_inner_pub_input.elements);
+        }
 
         // virtual target for the verifier data
         let node_verifier_data = builder.add_virtual_verifier_data(inner_common.config.fri_config.cap_height);
@@ -92,7 +117,9 @@ impl<
             vd_pub_input.extend_from_slice(&node_verifier_data.constants_sigmas_cap.0[i].elements);
         }
         let vd_hash = builder.hash_n_to_hash_no_pad::<H>(vd_pub_input);
-        builder.register_public_inputs(&vd_hash.elements);
+        if register_pi {
+            builder.register_public_inputs(&vd_hash.elements);
+        }
 
         // condition for switching between node and leaf
         let condition = builder.add_virtual_bool_target_safe();
@@ -102,15 +129,13 @@ impl<
 
         // verify the proofs in-circuit  - M proofs
         for i in 0..M {
-        builder.verify_proof::<C>(&vir_proofs[i], &selected_vd, &inner_common);
+            builder.verify_proof::<C>(&vir_proofs[i], &selected_vd, &inner_common);
         }
 
         // Make sure we have every gate to match `common_data`.
         for g in &inner_common.gates {
             builder.add_gate_to_gate_set(g.clone());
         }
-
-        // let proofs = vec_to_array::<2, ProofWithPublicInputsTarget<D>>(vir_proofs)?;
 
         // return targets
         let t = NodeTargets {
@@ -119,56 +144,32 @@ impl<
             condition,
         };
         Ok(t)
-
     }
 
-    /// assign the leaf targets with given input
-    pub fn assign_targets(
-        &self, pw: &mut PartialWitness<F>,
-        targets: &NodeTargets<D>,
-        node_proofs: &[ProofWithPublicInputs<F, C, D>],
-        verifier_only_data: &VerifierOnlyCircuitData<C, D>,
-        condition: bool,
-    ) -> Result<()> {
+    fn assign_targets(&self, pw: &mut PartialWitness<F>, targets: &Self::Targets, input: &Self::Input) -> Result<()> {
         // assert size of proofs vec
-        assert_eq!(node_proofs.len(), M);
+        assert_eq!(input.node_proofs.len(), M);
 
         // assign the proofs
         for i in 0..M {
-            pw.set_proof_with_pis_target(&targets.leaf_proofs[i], &node_proofs[i])
+            pw.set_proof_with_pis_target(&targets.leaf_proofs[i], &input.node_proofs[i])
                 .map_err(|e| {
                     CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
                 })?;
         }
 
         // assign the verifier data
-        pw.set_verifier_data_target(&targets.node_verifier_data, &verifier_only_data)
+        pw.set_verifier_data_target(&targets.node_verifier_data, &input.verifier_only_data)
             .map_err(|e| {
                 CircuitError::VerifierDataTargetAssignmentError(e.to_string())
             })?;
 
         // assign the condition
-        pw.set_bool_target(targets.condition, condition)
+        pw.set_bool_target(targets.condition, input.condition)
             .map_err(|e| CircuitError::BoolTargetAssignmentError("condition".to_string(), e.to_string()))?;
 
         Ok(())
     }
-
-    /// returns the leaf circuit data
-    pub fn get_circuit_data (&self) -> Result<CircuitData<F, C, D>>
-        where
-            <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
-    {
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config.clone());
-
-        self.build(&mut builder)?;
-
-        let circ_data = builder.build::<C>();
-
-        Ok(circ_data)
-    }
-
 }
 
 

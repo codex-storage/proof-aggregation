@@ -9,6 +9,7 @@ use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError, Result};
+use crate::circuit_helper::Plonky2Circuit;
 
 /// A circuit that verifies the aggregated public inputs from inner circuits.
 ///
@@ -16,6 +17,7 @@ use crate::{error::CircuitError, Result};
 /// - `M`: Number of leaf proofs aggregated at the node level.
 /// - `T`: Total Number of inner-proofs.
 /// - `K`: Number of public input field elements per inner-proof (sampling proof).
+#[derive(Clone, Debug)]
 pub struct PublicInputVerificationCircuit<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -36,9 +38,23 @@ pub struct PublicInputVerificationCircuit<
 /// Holds the virtual targets for the circuit.
 /// - `inner_proof`: the proof to be verified and contains the public input to be verified.
 /// - `inner_pub_inputs`: A nested vector of targets with dimensions T×K.
+#[derive(Clone, Debug)]
 pub struct PublicInputVerificationTargets<const D: usize> {
     pub inner_proof: ProofWithPublicInputsTarget<D>,
     pub inner_pub_inputs: Vec<Vec<Target>>,
+}
+
+/// input to the circuit for public input verification
+/// - `inner_proof`: The tree root proof with 2 hash digests (8 Goldilocks field elements) public inputs [pi_hash, vd_hash].
+/// - `inner_pub_inputs_vals`: T×K public input values from inner proofs.
+#[derive(Clone, Debug)]
+pub struct PublicInputVerificationInput<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+>{
+    pub inner_proof: ProofWithPublicInputs<F, C, D>,
+    pub inner_pub_inputs_vals: Vec<Vec<F>>,
 }
 
 impl<F, const D: usize, C, H, const N: usize, const M: usize, const T: usize, const K: usize>
@@ -64,12 +80,23 @@ PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
             phantom: PhantomData,
         }
     }
+}
+impl<F, const D: usize, C, H, const N: usize, const M: usize, const T: usize, const K: usize>
+Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
+    where
+        F: RichField + Extendable<D> + Poseidon2,
+        C: GenericConfig<D, F = F>,
+        H: AlgebraicHasher<F>,
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+{
+    type Targets = PublicInputVerificationTargets<D>;
+    type Input = PublicInputVerificationInput<F, D, C>;
 
     /// Builds the circuit by:
     /// 1. Verifies a proof target with 8 public inputs (the final [pi_hash, vd_hash]).
     /// 2. verifies correct tree hashing of all T×K targets to represent all inner public inputs.
     /// 3. verifies correct node_verifier_date used is the same as in public input (last 4 field elements).
-    pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<PublicInputVerificationTargets<D>> {
+    fn add_targets(&self, builder: &mut CircuitBuilder<F, D>, register_pi: bool) -> Result<PublicInputVerificationTargets<D>> {
         // Add a virtual proof with 8 public inputs. This is the final root proof whose
         // public inputs we want to check in-circuit.
         let inner_proof = builder.add_virtual_proof_with_pis(&self.node_common_data);
@@ -85,7 +112,11 @@ PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
         for _ in 0..T {
             let mut row = Vec::with_capacity(K);
             for _ in 0..K {
-                row.push(builder.add_virtual_public_input()); // public input
+                if register_pi {
+                    row.push(builder.add_virtual_public_input()); // public input
+                } else{
+                    row.push(builder.add_virtual_target());
+                }
             }
             inner_pub_inputs.push(row);
         }
@@ -115,7 +146,9 @@ PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
         let node_hash_t = builder.hash_n_to_hash_no_pad::<H>(node_vd_input_t);
         // make sure the VerifierData we use is the same as the tree root hash of the VerifierData
         builder.connect_hashes(node_hash_t,HashOutTarget::from_vec(node_vd_hash_t.to_vec()));
-        builder.register_public_inputs(&node_hash_t.elements); // public input
+        if register_pi {
+            builder.register_public_inputs(&node_hash_t.elements); // public input
+        }
 
         let mut pub_in_hashes_t = Vec::new();
 
@@ -174,31 +207,27 @@ PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
         })
     }
 
-    /// Assigns witness values to the targets.
-    /// - `inner_proof`: The tree root proof with 8 public inputs [pi_hash, vd_hash].
-    /// - `inner_pub_inputs_vals`: T×K public input values from inner proofs.
-    pub fn assign_targets(
+    fn assign_targets(
         &self,
         pw: &mut PartialWitness<F>,
-        targets: &PublicInputVerificationTargets<D>,
-        inner_proof: ProofWithPublicInputs<F, C, D>,
-        inner_pub_inputs_vals: Vec<Vec<F>>,
+        targets: &Self::Targets,
+        input: &Self::Input,
     ) -> Result<()> {
         // Assign the final proof - it should have 8 public inputs
-        pw.set_proof_with_pis_target(&targets.inner_proof, &inner_proof)
+        pw.set_proof_with_pis_target(&targets.inner_proof, &input.inner_proof)
             .map_err(|e| {
                 CircuitError::ProofTargetAssignmentError("final-proof".to_string(), e.to_string())
             })?;
 
         // Assign T×K inner public inputs
-        if inner_pub_inputs_vals.len() != T {
+        if input.inner_pub_inputs_vals.len() != T {
             return Err(CircuitError::InvalidArgument(format!(
                 "Expected T={} rows of inner_pub_inputs_vals, got {}",
                 T,
-                inner_pub_inputs_vals.len()
+                input.inner_pub_inputs_vals.len()
             )));
         }
-        for (i, row_vals) in inner_pub_inputs_vals.into_iter().enumerate() {
+        for (i, row_vals) in input.inner_pub_inputs_vals.iter().enumerate() {
             if row_vals.len() != K {
                 return Err(CircuitError::InvalidArgument(format!(
                     "Expected K={} values in row {}, got {}",
@@ -207,7 +236,7 @@ PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
                     row_vals.len()
                 )));
             }
-            for (j, val) in row_vals.into_iter().enumerate() {
+            for (j, &val) in row_vals.into_iter().enumerate() {
                 pw.set_target(targets.inner_pub_inputs[i][j], val).map_err(|e| {
                     CircuitError::TargetAssignmentError(format!("inner public input index [{}][{}]", i,j), e.to_string())
                 })?;

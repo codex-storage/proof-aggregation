@@ -2,12 +2,13 @@ use std::marker::PhantomData;
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierOnlyCircuitData};
+use plonky2::plonk::circuit_data::{CommonCircuitData, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError,Result};
+use crate::circuit_helper::Plonky2Circuit;
 
 /// recursion leaf circuit - verifies N inner proof
 #[derive(Clone, Debug)]
@@ -32,6 +33,15 @@ pub struct LeafTargets <
     pub inner_proof: Vec<ProofWithPublicInputsTarget<D>>,
 }
 
+#[derive(Clone, Debug)]
+pub struct LeafInput<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+>{
+    pub inner_proof: Vec<ProofWithPublicInputs<F, C, D>>
+}
+
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -42,18 +52,30 @@ impl<
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
     pub fn new(
-        inner_common_data: CommonCircuitData<F,D>,
+        inner_common_data: CommonCircuitData<F, D>,
         inner_verifier_data: VerifierOnlyCircuitData<C, D>,
     ) -> Self {
-        Self{
+        Self {
             inner_common_data,
             inner_verifier_data,
-            phantom_data:PhantomData::default(),
+            phantom_data: PhantomData::default(),
         }
     }
+}
 
-    /// build the leaf circuit
-    pub fn build(&self, builder: &mut CircuitBuilder<F, D>) -> Result<LeafTargets<D>> {
+impl<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+    H: AlgebraicHasher<F>,
+    const N: usize,
+> Plonky2Circuit<F, C, D> for LeafCircuit<F,D,C,H,N> where
+    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
+{
+    type Targets = LeafTargets<D>;
+    type Input = LeafInput<F, D, C>;
+
+    fn add_targets(&self, builder: &mut CircuitBuilder<F, D>, register_pi: bool) -> Result<LeafTargets<D>> {
 
         let inner_common = self.inner_common_data.clone();
 
@@ -69,11 +91,15 @@ impl<
 
         // hash the public input & make it public
         let hash_inner_pub_input = builder.hash_n_to_hash_no_pad::<H>(pub_input);
-        builder.register_public_inputs(&hash_inner_pub_input.elements);
+        if register_pi {
+            builder.register_public_inputs(&hash_inner_pub_input.elements);
+        }
 
         // pad the public input with constants so that it shares the same structure as the node
         let zero_hash = builder.constant_hash(HashOut::<F>::default());
-        builder.register_public_inputs(&zero_hash.elements);
+        if register_pi {
+            builder.register_public_inputs(&zero_hash.elements);
+        }
 
         // virtual constant target for the verifier data
         let const_verifier_data = builder.constant_verifier_data(&self.inner_verifier_data);
@@ -91,37 +117,21 @@ impl<
 
     }
 
-    /// assign the leaf targets with given input
-    pub fn assign_targets(
+    fn assign_targets(
         &self, pw: &mut PartialWitness<F>,
-        targets: &LeafTargets<D>,
-        inner_proof: &[ProofWithPublicInputs<F, C, D>],
+        targets: &Self::Targets,
+        input: &Self::Input,
     ) -> Result<()> {
-        assert_eq!(inner_proof.len(), N);
+        assert_eq!(input.inner_proof.len(), N);
         // assign the proofs
         for i in 0..N {
-            pw.set_proof_with_pis_target(&targets.inner_proof[i], &inner_proof[i])
+            pw.set_proof_with_pis_target(&targets.inner_proof[i], &input.inner_proof[i])
                 .map_err(|e| {
                     CircuitError::ProofTargetAssignmentError("inner-proof".to_string(), e.to_string())
                 })?;
         }
 
         Ok(())
-    }
-
-    /// returns the leaf circuit data
-    pub fn get_circuit_data (&self) -> Result<CircuitData<F, C, D>>
-        where
-            <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
-    {
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config.clone());
-
-        self.build(&mut builder)?;
-
-        let circ_data = builder.build::<C>();
-
-        Ok(circ_data)
     }
 
 }

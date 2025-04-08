@@ -1,17 +1,21 @@
 use std::marker::PhantomData;
 use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::iop::witness::PartialWitness;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierOnlyCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use plonky2_field::extension::Extendable;
 use crate::{error::CircuitError, Result};
+use crate::circuit_helper::Plonky2Circuit;
 use crate::recursion::uniform::{leaf::{LeafTargets,LeafCircuit},node::{NodeTargets,NodeCircuit}};
-use crate::recursion::uniform::compress::{CompressionCircuit, CompressionTargets};
+use crate::recursion::uniform::compress::{CompressionCircuit, CompressionInput, CompressionTargets};
+use crate::recursion::uniform::leaf::LeafInput;
+use crate::recursion::uniform::node::NodeInput;
 
 /// tree recursion
+/// - `N`: Number of inner-proofs aggregated at the leaf level.
+/// - `M`: Number of leaf proofs aggregated at the node level.
 pub struct TreeRecursion<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -31,7 +35,7 @@ pub struct TreeRecursion<
     leaf_targets: LeafTargets<D>,
     node_targets: NodeTargets<D>,
     compression_targets: CompressionTargets<D>,
-    phantom_data: PhantomData<(H)>
+    phantom_data: PhantomData<H>
 }
 
 impl<
@@ -44,36 +48,38 @@ impl<
 > TreeRecursion<F, D, C, H, N, M> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
-
-    pub fn build(
+    /// build with standard recursion config
+    pub fn build_with_standard_config(
         inner_common_data: CommonCircuitData<F,D>,
         inner_verifier_data: VerifierOnlyCircuitData<C, D>,
     ) -> Result<Self> {
-        // build leaf with standard recursion config
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+        Self::build(
+            inner_common_data,
+            inner_verifier_data,
+            CircuitConfig::standard_recursion_config()
+        )
+    }
 
-        let leaf = LeafCircuit::<_,D,_,_,N>::new(inner_common_data.clone(), inner_verifier_data.clone());
-        let leaf_targets = leaf.build(&mut builder)?;
-        let leaf_circ_data = builder.build::<C>();
+    /// build the tree with given config
+    pub fn build(
+        inner_common_data: CommonCircuitData<F,D>,
+        inner_verifier_data: VerifierOnlyCircuitData<C, D>,
+        config: CircuitConfig,
+    ) -> Result<Self> {
+        // build leaf with standard recursion config
+        let leaf = LeafCircuit::<_,D,_,_,N>::new(inner_common_data, inner_verifier_data);
+        let (leaf_targets, leaf_circ_data) = leaf.build(config.clone())?;
         // println!("leaf circuit size = {:?}", leaf_circ_data.common.degree_bits());
 
         // build node with standard recursion config
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
         let node = NodeCircuit::<_,D,_,_,M>::new(leaf_circ_data.common.clone(), leaf_circ_data.verifier_only.clone());
-        let node_targets = node.build(&mut builder)?;
-        let node_circ_data = builder.build::<C>();
+        let (node_targets, node_circ_data) = node.build(config.clone())?;
         // println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
 
         // compression build
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
         let node_common = node_circ_data.common.clone();
         let compression_circ = CompressionCircuit::new(node_common, node_circ_data.verifier_only.clone());
-        let compression_targets = compression_circ.build(&mut builder)?;
-        let compression_circ_data = builder.build::<C>();
+        let (compression_targets, compression_circ_data) = compression_circ.build(config.clone())?;
         // println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
 
         Ok(Self{
@@ -109,12 +115,16 @@ impl<
     pub fn prove_tree_and_compress(
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
-    ) -> Result<(ProofWithPublicInputs<F, C, D>)>
+    ) -> Result<ProofWithPublicInputs<F, C, D>>
     {
         let proof =
             self.prove_tree(proofs_with_pi)?;
         let mut pw = PartialWitness::<F>::new();
-        self.compression.assign_targets(&mut pw, &self.compression_targets, proof)?;
+        self.compression.assign_targets(
+            &mut pw,
+            &self.compression_targets,
+            &CompressionInput{ inner_proof: proof},
+        )?;
 
         self.compression_circ_data.prove(pw).map_err(
             |e| CircuitError::InvalidProofError(e.to_string())
@@ -125,7 +135,7 @@ impl<
     (
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
-    ) -> Result<(ProofWithPublicInputs<F, C, D>)>
+    ) -> Result<ProofWithPublicInputs<F, C, D>>
     {
         if proofs_with_pi.len() % 2 != 0 {
             return
@@ -135,7 +145,7 @@ impl<
         }
         // process leaves
         let leaf_proofs = self.get_leaf_proofs(
-            proofs_with_pi,
+            &proofs_with_pi,
         )?;
 
         // process nodes
@@ -149,14 +159,18 @@ impl<
     (
         &mut self,
         proofs_with_pi: &[ProofWithPublicInputs<F, C, D>],
-    ) -> Result<(Vec<ProofWithPublicInputs<F, C, D>>)> {
+    ) -> Result<Vec<ProofWithPublicInputs<F, C, D>>> {
 
         let mut leaf_proofs = vec![];
 
-        for proof in proofs_with_pi.chunks(N){
+        for proofs in proofs_with_pi.chunks(N){
+            let leaf_input = LeafInput{
+                inner_proof: proofs.to_vec(),
+            };
+
             let mut pw = PartialWitness::<F>::new();
 
-            self.leaf.assign_targets(&mut pw,&self.leaf_targets,proof)?;
+            self.leaf.assign_targets(&mut pw,&self.leaf_targets,&leaf_input)?;
             let proof = self.leaf_circ_data.prove(pw).unwrap();
             leaf_proofs.push(proof);
         }
@@ -186,12 +200,16 @@ impl<
 
             let mut inner_pw = PartialWitness::new();
 
+            let node_input = NodeInput{
+                node_proofs: chunk.to_vec().clone(),
+                verifier_only_data: verifier_only_data.clone(),
+                condition,
+            };
+
             self.node.assign_targets(
                 &mut inner_pw,
                 &self.node_targets,
-                chunk,
-                verifier_only_data,
-                condition
+                &node_input
             )?;
 
             let proof = self.node_circ_data.prove(inner_pw)
@@ -256,7 +274,6 @@ impl<
             pub_in_hashes.push(hash);
         }
 
-        let mut level = 0;
         while pub_in_hashes.len() > 1 {
             let mut next_level_pi_hashes = Vec::new();
             for pi_chunk in pub_in_hashes.chunks(M) {
@@ -269,7 +286,6 @@ impl<
                 next_level_pi_hashes.push(pi_hash);
             }
             pub_in_hashes = next_level_pi_hashes;
-            level +=1;
         }
 
         //check expected hash

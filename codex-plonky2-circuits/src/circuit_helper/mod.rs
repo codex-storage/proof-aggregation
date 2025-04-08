@@ -33,6 +33,7 @@ pub trait Plonky2Circuit<
     ) -> Result<(Self::Targets,CircuitData<F, C, D>)>{
         let mut builder = CircuitBuilder::<F, D>::new(circuit_config);
 
+        // NOTE: register public input is set to TRUE as default.
         let targets = self.add_targets(&mut builder, true)?;
 
         Ok((targets,builder.build::<C>()))
@@ -80,7 +81,7 @@ pub trait Plonky2Circuit<
         &self,
         targets: &Self::Targets,
         input: &Self::Input,
-        prover_circuit_data: ProverCircuitData<F, C, D>
+        prover_circuit_data: &ProverCircuitData<F, C, D>
     )-> Result<ProofWithPublicInputs<F, C, D>>{
         let mut pw = PartialWitness::new();
         self.assign_targets(&mut pw, targets, input)?;
