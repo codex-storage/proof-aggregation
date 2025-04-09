@@ -12,8 +12,10 @@ use plonky2::{
 };
 use std::marker::PhantomData;
 use plonky2::plonk::config::AlgebraicHasher;
+use serde::{Deserialize, Serialize};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::circuits::keyed_compress::key_compress_circuit;
+use crate::circuits::serialization::SerializableHashOutTarget;
 use crate::circuits::utils::{add_assign_hash_out_target, mul_hash_out_target};
 use crate::Result;
 use crate::error::CircuitError;
@@ -34,10 +36,10 @@ pub struct MerkleTreeTargets{
     pub merkle_path: MerkleProofTarget,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MerkleProofTarget {
     /// The Merkle digest of each sibling subtree, staying from the bottommost layer.
-    pub path: Vec<HashOutTarget>,
+    pub path: Vec<SerializableHashOutTarget>,
 }
 
 /// Merkle tree circuit contains the functions for
@@ -139,8 +141,8 @@ impl<
             let mut left = vec![];
             let mut right = vec![];
             for j in 0..NUM_HASH_OUT_ELTS {
-                left.push( builder.select(bit, sibling.elements[j], state[i].elements[j]));
-                right.push( builder.select(bit, state[i].elements[j], sibling.elements[j]));
+                left.push( builder.select(bit, sibling.0.elements[j], state[i].elements[j]));
+                right.push( builder.select(bit, state[i].elements[j], sibling.0.elements[j]));
             }
 
             // Compress them with a keyed-hash function

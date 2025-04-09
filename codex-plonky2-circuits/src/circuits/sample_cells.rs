@@ -19,6 +19,7 @@ use plonky2::{
     plonk::circuit_builder::CircuitBuilder,
 };
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
+use serde::{Deserialize, Serialize};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 
 use crate::{
@@ -32,6 +33,7 @@ use crate::{
     error::CircuitError,
 };
 use crate::circuit_helper::Plonky2Circuit;
+use crate::circuits::serialization::SerializableHashOutTarget;
 
 /// circuit for sampling a slot in a dataset merkle tree
 #[derive(Clone, Debug)]
@@ -60,14 +62,14 @@ impl<
 
 /// struct of input to the circuit as targets
 /// used to build the circuit and can be assigned after building
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SampleTargets {
 
-    pub entropy: HashOutTarget, // public input
-    pub dataset_root: HashOutTarget, // public input
+    pub entropy: SerializableHashOutTarget, // public input
+    pub dataset_root: SerializableHashOutTarget, // public input
     pub slot_index: Target, // public input
 
-    pub slot_root: HashOutTarget,
+    pub slot_root: SerializableHashOutTarget,
     pub n_cells_per_slot: Target,
     pub n_slots_per_dataset: Target,
 
@@ -108,7 +110,7 @@ pub struct MerklePath<
 }
 
 /// a vec of cell targets
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CellTarget {
     pub data: Vec<Target>
 }
@@ -137,8 +139,8 @@ impl<
         let targets = self.sample_slot_circuit(builder)?;
         let mut pub_targets = vec![];
         pub_targets.push(targets.slot_index);
-        pub_targets.extend_from_slice(&targets.dataset_root.elements);
-        pub_targets.extend_from_slice(&targets.entropy.elements);
+        pub_targets.extend_from_slice(&targets.dataset_root.0.elements);
+        pub_targets.extend_from_slice(&targets.entropy.0.elements);
         builder.register_public_inputs(&pub_targets);
         Ok(targets)
     }
@@ -180,7 +182,7 @@ impl<
 
         // dataset Merkle path (sibling hashes from leaf to root)
         let d_merkle_path = MerkleProofTarget {
-            path: (0..max_log2_n_slots).map(|_| builder.add_virtual_hash()).collect(),
+            path: (0..max_log2_n_slots).map(|_| builder.add_virtual_hash()).map(SerializableHashOutTarget::from).collect(),
         };
 
         // create MerkleTreeTargets struct
@@ -255,11 +257,11 @@ impl<
             let s_path_bits = b_path_bits.split_off(block_tree_depth);
 
             let b_merkle_path = MerkleProofTarget {
-                path: (0..block_tree_depth).map(|_| builder.add_virtual_hash()).collect(),
+                path: (0..block_tree_depth).map(|_| builder.add_virtual_hash()).map(SerializableHashOutTarget::from).collect(),
             };
 
             let s_merkle_path = MerkleProofTarget {
-                path: (0..(max_depth - block_tree_depth)).map(|_| builder.add_virtual_hash()).collect(),
+                path: (0..(max_depth - block_tree_depth)).map(|_| builder.add_virtual_hash()).map(SerializableHashOutTarget::from).collect(),
             };
 
             let mut block_targets = MerkleTreeTargets {
@@ -304,10 +306,10 @@ impl<
         }
 
         let st = SampleTargets {
-            entropy: entropy_target,
-            dataset_root: d_expected_root,
+            entropy: entropy_target.into(),
+            dataset_root: d_expected_root.into(),
             slot_index,
-            slot_root: d_targets.leaf,
+            slot_root: d_targets.leaf.into(),
             n_cells_per_slot,
             n_slots_per_dataset,
             slot_proof: d_targets.merkle_path,
@@ -367,7 +369,7 @@ impl<
 
         // assign dataset proof
         for (i, sibling_hash) in witnesses.slot_proof.iter().enumerate() {
-            pw.set_hash_target(targets.slot_proof.path[i], *sibling_hash)
+            pw.set_hash_target(targets.slot_proof.path[i].0, *sibling_hash)
                 .map_err(|e| {
                     CircuitError::HashTargetAssignmentError("slot_proof".to_string(), e.to_string())
                 })?;
@@ -379,19 +381,19 @@ impl<
             })?;
 
         // assign the expected Merkle root of dataset to the target
-        pw.set_hash_target(targets.dataset_root, witnesses.dataset_root)
+        pw.set_hash_target(targets.dataset_root.0, witnesses.dataset_root)
             .map_err(|e| {
                 CircuitError::HashTargetAssignmentError("dataset_root".to_string(), e.to_string())
             })?;
 
         // assign the sampled slot
-        pw.set_hash_target(targets.slot_root, witnesses.slot_root)
+        pw.set_hash_target(targets.slot_root.0, witnesses.slot_root)
             .map_err(|e| {
                 CircuitError::HashTargetAssignmentError("slot_root".to_string(), e.to_string())
             })?;
 
         // assign entropy
-        assign_hash_out_targets(pw, &targets.entropy, &witnesses.entropy)?;
+        assign_hash_out_targets(pw, &targets.entropy.0, &witnesses.entropy)?;
 
         // do the sample N times
         for i in 0..n_samples {
@@ -406,7 +408,7 @@ impl<
             // assign proof for that cell
             let cell_proof = witnesses.merkle_paths[i].path.clone();
             for k in 0..max_depth {
-                pw.set_hash_target(targets.merkle_paths[i].path[k], cell_proof[k])
+                pw.set_hash_target(targets.merkle_paths[i].path[k].0, cell_proof[k])
                     .map_err(|e| {
                         CircuitError::HashTargetAssignmentError("merkle_paths".to_string(), e.to_string())
                     })?;
