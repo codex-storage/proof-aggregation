@@ -1,35 +1,18 @@
-use serde::Serialize;
-use std::fs::File;
+use serde::{Deserialize, Serialize};
 use std::{fs, io};
-use std::io::BufWriter;
 use std::path::Path;
+use anyhow::Context;
 use crate::gen_input::gen_testing_circuit_input;
 use plonky2::hash::hash_types::RichField;
-use plonky2::plonk::config::GenericConfig;
+use plonky2::plonk::circuit_data::{CircuitData, ProverCircuitData, VerifierCircuitData};
+use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use serde_json::to_writer_pretty;
-
-// Function to export proof with public input to json file
-fn export_proof_with_pi_to_json<F, C, const D: usize>(
-    instance: &ProofWithPublicInputs<F, C, D>,
-    path: &str,
-) -> io::Result<()>
-    where
-        F: RichField + Extendable<D> + Poseidon2 + Serialize,
-        C: GenericConfig<D, F = F> + Serialize,
-{
-    // Create or overwrite the file at the given path
-    let file = File::create(path)?;
-    let writer = BufWriter::new(file);
-
-    // Serialize the struct to JSON and write it to the file
-    to_writer_pretty(writer, instance)?;
-
-    Ok(())
-}
+use serde::de::DeserializeOwned;
+use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
+use crate::serialization::file_paths::{PROOF_JSON, PROVER_CIRC_DATA_JSON, TARGETS_JSON, VERIFIER_CIRC_DATA_JSON};
 
 /// Writes the provided bytes to the specified file path using `std::fs::write`.
 pub fn write_bytes_to_file<P: AsRef<Path>>(data: Vec<u8>, path: P) -> io::Result<()> {
@@ -39,6 +22,138 @@ pub fn write_bytes_to_file<P: AsRef<Path>>(data: Vec<u8>, path: P) -> io::Result
 /// Reads the contents of the specified file and returns them as a vector of bytes using `std::fs::read`.
 pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
     fs::read(path)
+}
+
+/// Ensures that the parent directory of the given file path exists.
+/// If it does not exist, the function creates the entire directory path.
+pub fn ensure_parent_directory_exists(path: &str) -> anyhow::Result<()> {
+    if let Some(parent) = Path::new(path).parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory {:?}", parent))?;
+    }
+    Ok(())
+}
+
+/// Export the circuit data to disk. This function serializes the prover data,
+/// verifier data, and circuit targets, and then writes them to their respective files.
+/// The function uses the file paths defined in file_paths.rs
+pub fn export_circuit_data<F, C, const D: usize>(
+    circ_data: CircuitData<F,C,D>,
+    targets: &impl Serialize,
+) -> anyhow::Result<()>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + 'static + Serialize, C:Default,
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
+{
+    // separate the prover and verifier data
+    let verifier_data: VerifierCircuitData<F, C,D> = circ_data.verifier_data();
+    let prover_data = circ_data.prover_data();
+
+    let gate_serializer = DefaultGateSerializer;
+    let generator_serializer =DefaultGeneratorSerializer::<C, D>::default();
+
+    // Serialize the prover data.
+    let prover_data_bytes = prover_data
+        .to_bytes(&gate_serializer, &generator_serializer)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize prover data: {:?}", e))?;
+    // Serialize the verifier data.
+    let verifier_data_bytes = verifier_data
+        .to_bytes(&gate_serializer)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize verifier data: {:?}", e))?;
+    // Serialize the circuit targets using serde_json.
+    let targets_bytes = serde_json::to_vec(targets)
+        .context("Failed to serialize circuit targets")?;
+
+    // Ensure that the parent directories exist.
+    ensure_parent_directory_exists(PROVER_CIRC_DATA_JSON)?;
+    ensure_parent_directory_exists(VERIFIER_CIRC_DATA_JSON)?;
+    ensure_parent_directory_exists(TARGETS_JSON)?;
+
+    // Write all data to the corresponding files.
+    write_bytes_to_file(prover_data_bytes, PROVER_CIRC_DATA_JSON)
+        .with_context(|| format!("Failed to write prover data to {}", PROVER_CIRC_DATA_JSON))?;
+    write_bytes_to_file(verifier_data_bytes, VERIFIER_CIRC_DATA_JSON)
+        .with_context(|| format!("Failed to write verifier data to {}", VERIFIER_CIRC_DATA_JSON))?;
+    write_bytes_to_file(targets_bytes, TARGETS_JSON)
+        .with_context(|| format!("Failed to write circuit targets to {}", TARGETS_JSON))?;
+
+    Ok(())
+}
+
+/// Import the prover circuit data from disk and deserialize it.
+pub fn import_prover_circuit_data<F, C, const D: usize>() -> anyhow::Result<ProverCircuitData<F, C, D>>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + 'static + Serialize, C:Default,
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
+{
+    let gate_serializer = DefaultGateSerializer;
+    let generator_serializer =DefaultGeneratorSerializer::<C, D>::default();
+
+    let bytes = read_bytes_from_file(PROVER_CIRC_DATA_JSON)
+        .with_context(|| format!("Failed to read prover circuit data from {}", PROVER_CIRC_DATA_JSON))?;
+    let prover_data = ProverCircuitData::<F,C,D>::from_bytes(&bytes, &gate_serializer, &generator_serializer)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize prover data: {:?}", e))?;
+    Ok(prover_data)
+}
+
+/// Import the verifier circuit data from disk and deserialize it.
+pub fn import_verifier_circuit_data<F, C, const D: usize>(
+) -> anyhow::Result<VerifierCircuitData<F, C, D>>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + Serialize,
+{
+    let gate_serializer = DefaultGateSerializer;
+
+    let bytes = read_bytes_from_file(VERIFIER_CIRC_DATA_JSON)
+        .with_context(|| format!("Failed to read verifier circuit data from {}", VERIFIER_CIRC_DATA_JSON))?;
+    let verifier_data = VerifierCircuitData::<F,C,D>::from_bytes(bytes, &gate_serializer)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize verifier data: {:?}", e))?;
+    Ok(verifier_data)
+}
+
+/// Import the proof with public input from the JSON file.
+pub fn import_proof_with_pi<F, C, const D: usize>() -> anyhow::Result<ProofWithPublicInputs<F, C, D>>
+    where
+        F: RichField + Extendable<D> + Poseidon2,
+        C: GenericConfig<D, F = F>,
+{
+    let proof_json = fs::read_to_string(PROOF_JSON)
+        .with_context(|| format!("Failed to read file {}", PROOF_JSON))?;
+    let proof = serde_json::from_str(&proof_json)
+        .context("Failed to deserialize proof with public input")?;
+    Ok(proof)
+}
+
+/// Import the circuit targets from the JSON file.
+/// This function is generic over the type `T` that represents the targets and
+/// must implement `DeserializeOwned` so that it can be deserialized.
+pub fn import_targets<T>() -> anyhow::Result<T>
+    where
+        T: DeserializeOwned,
+{
+    let targets_json = fs::read_to_string(TARGETS_JSON)
+        .with_context(|| format!("Failed to read file {}", TARGETS_JSON))?;
+    let targets = serde_json::from_str(&targets_json)
+        .context("Failed to deserialize targets")?;
+    Ok(targets)
+}
+
+/// Function to export proof with public input to json file
+pub fn export_proof_with_pi<F, C, const D: usize>(
+    proof_with_pis: &ProofWithPublicInputs<F, C, D>,
+) -> anyhow::Result<()>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + Serialize,
+{
+    let proof_serialized= serde_json::to_vec(&proof_with_pis)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize proof with public input: {:?}", e))?;
+    fs::write(PROOF_JSON  , &proof_serialized).expect("Unable to write file");
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -59,7 +174,7 @@ mod tests {
         // Create Params
         let params = Params::default().input_params;
         // Export the circuit input to JSON
-        generate_and_export_circ_input_to_json::<F,D>(&params, "input.json")?;
+        generate_and_export_circ_input_to_json::<F,D>(&params)?;
 
         println!("Circuit input exported to input.json");
 
@@ -70,7 +185,7 @@ mod tests {
     fn test_import_circ_input_from_json() -> anyhow::Result<()> {
         // Import the circuit input from the JSON file
         // NOTE: MAKE SURE THE FILE EXISTS
-        let _circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
+        let _circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json()?;
         println!("circuit input imported successfully");
 
         Ok(())
@@ -84,11 +199,11 @@ mod tests {
 
         // Export the circuit input to JSON
         let original_circ_input = gen_testing_circuit_input(&params);
-        export_circ_input_to_json(original_circ_input.clone(), "input.json")?;
+        export_circ_input_to_json(original_circ_input.clone())?;
         println!("circuit input exported to input.json");
 
         // Import the circuit input from JSON
-        let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
+        let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json()?;
         println!("circuit input imported from input.json");
 
         // Compare the original and imported circuit input
@@ -116,7 +231,7 @@ mod tests {
         println!("circuit size = {:?}", verifier_data.common.degree_bits());
 
         // Import the circuit input from JSON
-        let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
+        let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json()?;
         println!("circuit input imported from input.json");
 
         let proof = circ.prove(&targets, &imported_circ_input, &prover_data)?;
@@ -137,7 +252,7 @@ mod tests {
         let params = Params::default().input_params;
 
         // Import the circuit input from JSON
-        let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("input.json")?;
+        let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json()?;
         println!("circuit input imported from input.json");
 
         // Verify the proof
@@ -219,8 +334,7 @@ mod tests {
         println!("prove_time = {:?}", start_time.elapsed());
         println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());
 
-        let filename = "proof_with_pi.json";
-        export_proof_with_pi_to_json(&proof_with_pis,filename)?;
+        export_proof_with_pi(&proof_with_pis)?;
         println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());
 
         // Verify the proof

@@ -8,12 +8,14 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use crate::gen_input::gen_testing_circuit_input;
 use crate::params::InputParams;
+use crate::serialization::file_paths::CIRC_INPUT_JSON;
+use crate::serialization::json::ensure_parent_directory_exists;
 
 /// export circuit input to json file
 pub fn export_circ_input_to_json<
     F: RichField + Extendable<D> + Poseidon2 + Serialize,
     const D: usize,
-> (circ_input:SampleCircuitInput<F, D>, filename: &str) -> anyhow::Result<()>{
+> (circ_input:SampleCircuitInput<F, D>) -> anyhow::Result<()>{
     // Convert the circuit input to a serializable format
     let serializable_circ_input = SerializableCircuitInput::from_circ_input(&circ_input);
 
@@ -21,7 +23,8 @@ pub fn export_circ_input_to_json<
     let json_data = serde_json::to_string_pretty(&serializable_circ_input)?;
 
     // Write to file
-    let mut file = File::create(filename)?;
+    ensure_parent_directory_exists(CIRC_INPUT_JSON)?;
+    let mut file = File::create(CIRC_INPUT_JSON)?;
     file.write_all(json_data.as_bytes())?;
     Ok(())
 }
@@ -31,11 +34,11 @@ pub fn export_circ_input_to_json<
 pub fn generate_and_export_circ_input_to_json<
     F: RichField + Extendable<D> + Poseidon2 + Serialize,
     const D: usize,
->(params: &InputParams, filename: &str) -> anyhow::Result<()> {
+>(params: &InputParams) -> anyhow::Result<()> {
 
     let circ_input = gen_testing_circuit_input::<F,D>(params);
 
-    export_circ_input_to_json(circ_input, filename)?;
+    export_circ_input_to_json(circ_input)?;
 
     Ok(())
 }
@@ -266,10 +269,8 @@ impl<> SerializableCircuitInput {
 }
 
 /// reads the json file, converts it to circuit input (SampleCircuitInput) and returns it
-pub fn import_circ_input_from_json<F: RichField + Extendable<D> + Poseidon2, const D: usize>(
-    filename: &str,
-) -> anyhow::Result<SampleCircuitInput<F, D>> {
-    let file = File::open(filename)?;
+pub fn import_circ_input_from_json<F: RichField + Extendable<D> + Poseidon2, const D: usize>() -> anyhow::Result<SampleCircuitInput<F, D>> {
+    let file = File::open(CIRC_INPUT_JSON)?;
     let reader = BufReader::new(file);
     let serializable_circ_input: SerializableCircuitInput = serde_json::from_reader(reader)?;
 

@@ -7,6 +7,7 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::config::{AlgebraicHasher, Hasher};
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
+use codex_plonky2_circuits::circuits::serialization::SerializableHashOutTarget;
 use codex_plonky2_circuits::circuits::utils::{assign_bool_targets, assign_hash_out_targets};
 use codex_plonky2_circuits::error::CircuitError;
 use crate::utils::usize_to_bits_le;
@@ -51,7 +52,7 @@ pub fn build_circuit<
 
     // Merkle path (sibling hashes from leaf to root)
     let merkle_path = MerkleProofTarget {
-        path: (0..depth).map(|_| builder.add_virtual_hash()).collect(),
+        path: (0..depth).map(|_| builder.add_virtual_hash()).map(SerializableHashOutTarget::from).collect(),
     };
 
     // create MerkleTreeTargets struct
@@ -107,10 +108,10 @@ pub fn assign_witness<
     // assign the Merkle path (sibling hashes) to the targets
     for i in 0..targets.merkle_path.path.len() {
         if i>=witnesses.merkle_path.len() { // pad with zeros
-            assign_hash_out_targets(pw, &targets.merkle_path.path[i], &HashOut::from_vec([F::ZERO; NUM_HASH_OUT_ELTS].to_vec()))?;
+            assign_hash_out_targets(pw, &targets.merkle_path.path[i].0, &HashOut::from_vec([F::ZERO; NUM_HASH_OUT_ELTS].to_vec()))?;
             continue
         }
-        assign_hash_out_targets(pw, &targets.merkle_path.path[i], &witnesses.merkle_path[i])?;
+        assign_hash_out_targets(pw, &targets.merkle_path.path[i].0, &witnesses.merkle_path[i])?;
     }
     Ok(())
 }
