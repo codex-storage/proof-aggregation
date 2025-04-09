@@ -20,7 +20,7 @@ This crate can be used to:
 
 - [`prove`](./src/bin/prove.rs) contains the main function to generated input with the given params as environment variables.
 
-- [`prove_and_verify`](./src/bin/prove_and_verify.rs) contains the main function to generated input with the given params as environment variables.
+- [`prove_and_verify`](./src/bin/verify) contains the main function to generated input with the given params as environment variables.
 
 - [`aggregate`](./src/bin/aggregate.rs) contains the main function to generate the sampling proofs and aggregate `k` of them.
 
@@ -119,7 +119,7 @@ Make sure that you generate the circuit input prior to this so that you have the
 ```bash
 sudo bash ./scripts/prove_and_verify.sh
 ```
-To inspect the source code, see [`prove_and_verify`](./src/bin/prove_and_verify.rs).
+To inspect the source code, see [`prove_and_verify`](./src/bin/verify).
 
 ### Generate K Proofs and aggregate them
 To do this, you can run the following script:

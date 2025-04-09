@@ -48,13 +48,13 @@ fn main() -> Result<()> {
     // dummy proofs
     let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..k).map(|i| inner_proof.clone()).collect();
 
-    let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build(data.common.clone()).unwrap();
+    let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build_with_standard_config(data.common.clone(), data.verifier_only.clone()).unwrap();
 
-    let tree_proof = tree.prove_tree(&proofs, &data.verifier_only).unwrap();
+    let tree_proof = tree.prove_tree(&proofs).unwrap();
 
     let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
 
-    assert!(tree.verify_proof_and_public_input(tree_proof,inner_pi.clone(),&data.verifier_data(), false).is_ok());
+    assert!(tree.verify_proof_and_public_input(tree_proof,inner_pi.clone(),false).is_ok());
 
     Ok(())
 }

@@ -10,4 +10,4 @@ cd "$(dirname "$0")/.." || { echo "Failed to change directory"; exit 1; }
 cargo build --release || { echo "gen_input.sh: cargo build failed"; exit 101; }
 
 # Run the Rust executable
-cargo run --bin gen_input || { echo "gen_input.sh: cargo run failed"; exit 102; }
+cargo run --bin gen_input --features "parallel" || { echo "gen_input.sh: cargo run failed"; exit 102; }
