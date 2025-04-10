@@ -1,31 +1,13 @@
-use plonky2::hash::hash_types::{HashOut, RichField};
-use plonky2_field::extension::Extendable;
-use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-
-fn digest_seq<
-    F: RichField + Extendable<D> + Poseidon2,
-    const D: usize,
->(n: usize) -> Vec<HashOut<F>> {
-    (0..n)
-        .map(|i| HashOut {
-            elements: [
-                F::from_canonical_u64((i + 1) as u64),
-                F::ZERO,
-                F::ZERO,
-                F::ZERO,
-            ],
-        })
-        .collect()
-}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use plonky2::hash::hash_types::{HashOut, RichField};
+    use plonky2_field::extension::Extendable;
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
     use anyhow::Result;
     use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
-    use plonky2::hash::hash_types::HashOut;
 
     type F = GoldilocksField;
     const D: usize = 2;
@@ -33,6 +15,22 @@ mod tests {
     struct TestCase {
         n: usize,
         digest: [u64; 4],
+    }
+
+    fn digest_seq<
+        F: RichField + Extendable<D> + Poseidon2,
+        const D: usize,
+    >(n: usize) -> Vec<HashOut<F>> {
+        (0..n)
+            .map(|i| HashOut {
+                elements: [
+                    F::from_canonical_u64((i + 1) as u64),
+                    F::ZERO,
+                    F::ZERO,
+                    F::ZERO,
+                ],
+            })
+            .collect()
     }
 
     #[test]

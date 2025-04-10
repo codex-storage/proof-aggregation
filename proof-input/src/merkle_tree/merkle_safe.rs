@@ -3,10 +3,7 @@
 // https://github.com/codex-storage/nim-codex/blob/master/codex/merkletree/merkletree.nim
 
 use anyhow::{ensure, Result};
-use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::hash::hash_types::{HashOut, RichField};
-use plonky2::hash::poseidon::PoseidonHash;
-use plonky2::plonk::config::Hasher;
 use std::ops::Shr;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
@@ -251,6 +248,9 @@ mod tests {
     use super::*;
     use plonky2::field::types::Field;
     use crate::merkle_tree::key_compress::key_compress;
+    use plonky2::plonk::config::Hasher;
+    use plonky2::hash::poseidon::PoseidonHash;
+    use plonky2::field::goldilocks_field::GoldilocksField;
 
     // types used in all tests
     type F = GoldilocksField;

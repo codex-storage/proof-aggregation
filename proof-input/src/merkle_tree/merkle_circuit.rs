@@ -1,18 +1,14 @@
 use codex_plonky2_circuits::Result;
 use plonky2::field::extension::Extendable;
-use plonky2::field::types::Field;
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::config::{AlgebraicHasher, Hasher};
+use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use codex_plonky2_circuits::circuits::merkle_circuit::{MerkleProofTarget, MerkleTreeCircuit, MerkleTreeTargets};
 use codex_plonky2_circuits::circuits::serialization::SerializableHashOutTarget;
 use codex_plonky2_circuits::circuits::utils::{assign_bool_targets, assign_hash_out_targets};
 use codex_plonky2_circuits::error::CircuitError;
-use crate::utils::usize_to_bits_le;
-
-use crate::merkle_tree::merkle_safe::MerkleTree;
 
 /// the input to the merkle tree circuit
 #[derive(Clone)]
@@ -122,11 +118,15 @@ mod tests {
     use plonky2::hash::hash_types::HashOut;
     use plonky2::hash::poseidon::PoseidonHash;
     use super::*;
+    use crate::merkle_tree::merkle_safe::MerkleTree;
+    use plonky2::plonk::config::Hasher;
+    use crate::utils::usize_to_bits_le;
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2_field::goldilocks_field::GoldilocksField;
+    use plonky2::field::types::Field;
 
     #[test]
     fn test_build_circuit() -> anyhow::Result<()> {

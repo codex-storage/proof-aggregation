@@ -1,18 +1,16 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{fs, io};
 use std::path::Path;
 use anyhow::Context;
-use crate::gen_input::gen_testing_circuit_input;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_data::{CircuitData, ProverCircuitData, VerifierCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use codex_plonky2_circuits::circuits::sample_cells::SampleCircuitInput;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use serde::de::DeserializeOwned;
 use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
-use crate::serialization::file_paths::{PROOF_JSON, PROVER_CIRC_DATA_JSON, TARGETS_JSON, VERIFIER_CIRC_DATA_JSON};
+use crate::serialization::file_paths::{PROOF_JSON, PROVER_CIRC_DATA_JSON, TARGETS_JSON, TREE_PROOF_JSON, VERIFIER_CIRC_DATA_JSON};
 
 /// Writes the provided bytes to the specified file path using `std::fs::write`.
 pub fn write_bytes_to_file<P: AsRef<Path>>(data: Vec<u8>, path: P) -> io::Result<()> {
@@ -141,6 +139,17 @@ pub fn import_targets<T>() -> anyhow::Result<T>
     Ok(targets)
 }
 
+/// Function to export tree proof with public input to json file
+pub fn export_tree_proof_with_pi<F, C, const D: usize>(
+    proof_with_pis: &ProofWithPublicInputs<F, C, D>,
+) -> anyhow::Result<()>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + Serialize,
+{
+    export_proof_with_pi_to_given_path(proof_with_pis, TREE_PROOF_JSON)
+}
+
 /// Function to export proof with public input to json file
 pub fn export_proof_with_pi<F, C, const D: usize>(
     proof_with_pis: &ProofWithPublicInputs<F, C, D>,
@@ -149,24 +158,38 @@ pub fn export_proof_with_pi<F, C, const D: usize>(
         F: RichField + Extendable<D> + Poseidon2 + Serialize,
         C: GenericConfig<D, F = F> + Serialize,
 {
+    export_proof_with_pi_to_given_path(proof_with_pis, PROOF_JSON)
+}
+
+/// Function to export proof with public input to json file
+/// takes the path
+fn export_proof_with_pi_to_given_path<F, C, const D: usize>(
+    proof_with_pis: &ProofWithPublicInputs<F, C, D>,
+    path: &str,
+) -> anyhow::Result<()>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + Serialize,
+{
     let proof_serialized= serde_json::to_vec(&proof_with_pis)
         .map_err(|e| anyhow::anyhow!("Failed to serialize proof with public input: {:?}", e))?;
-    fs::write(PROOF_JSON  , &proof_serialized).expect("Unable to write file");
+    fs::write(path  , &proof_serialized).expect("Unable to write file");
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::params::{C, D, F, HF, Params};
     use std::time::Instant;
-    use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
+    use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
     use plonky2::plonk::circuit_data::{ ProverCircuitData, VerifierCircuitData};
     use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+    use codex_plonky2_circuits::circuits::utils::read_bytes_from_file;
     use plonky2_poseidon2::serialization::{DefaultGateSerializer, DefaultGeneratorSerializer};
-    use crate::gen_input::verify_circuit_input;
+    use crate::gen_input::{gen_testing_circuit_input, verify_circuit_input};
     use crate::serialization::circuit_input::{export_circ_input_to_json, generate_and_export_circ_input_to_json, import_circ_input_from_json};
+    use crate::serialization::json::{export_proof_with_pi, write_bytes_to_file};
 
     // Test to generate the JSON file
     #[test]
