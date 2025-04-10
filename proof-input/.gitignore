@@ -11,3 +11,7 @@ pgo-data.profdata
 
 # MacOS nuisances
 .DS_Store
+
+# circuit files
+/prover_data
+/verifier_data

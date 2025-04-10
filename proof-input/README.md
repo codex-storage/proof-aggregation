@@ -8,11 +8,15 @@ the [`plonky2 codex proof circuits`](../codex-plonky2-circuits). Currently only 
 
 - [`merkle_tree`](./src/merkle_tree) is the implementation of "safe" merkle tree used in codex, consistent with the one [here](https://github.com/codex-storage/nim-codex/blob/master/codex/merkletree/merkletree.nim).
 
+- [`data_structs`](./src/data_structs.rs) contains the data structures for the codex storage, this is used to generate proof input.
+
 - [`gen_input`](./src/gen_input.rs) contains the necessary function to generate the proof input. 
 
-- [`json`](./src/serialization) contains the serialization functions to read and write the proof input from/to json files. 
+- [`recursion`](./src/recursion) contains the tests for the uniform (2-to-1 tree) recursion.
 
-- [`params`](./src/params.rs) is the test parameters used to generate the input. The params include circuit params as well.
+- [`serialization`](./src/serialization) contains the serialization functions to read and write circuit data, input, and proofs. 
+
+- [`params`](./src/params.rs) is the test parameters used to generate the input.
 
 - [`sponge`](./src/sponge.rs) contains the non-circuit version of hash function (with and without padding) used to hash cells and during sampling.
 

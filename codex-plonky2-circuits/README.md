@@ -17,7 +17,11 @@ This crate is an implementation of the [codex storage proofs circuits](https://g
 
 - [`utils`](./src/circuits/utils.rs) contains helper functions.
 
-- [`recursion`](./src/recursion) contains various approaches of implementing recursion circuits for aggregating proofs.
+- [`circuit_helper`](./src/circuit_helper) contains a general trait for all Plonky2 circuit to automate the building and proving.
+
+- [`error`](./src/error.rs) contains the list of error related to the circuits.
+
+- [`uniform recursion`](./src/recursion/uniform) contains the uniform (2-to-1 tree) recursion circuits for aggregating proofs.
 
 
 ## Usage

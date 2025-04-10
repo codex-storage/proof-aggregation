@@ -1,7 +1,14 @@
 Proof Aggregation
 ================================
+**WARNING**: This repository contains work-in-progress prototypes, and has not received careful code review. It is NOT ready for production use.
 
-This repository contains all work related to proof aggregation (currently only local proof aggregation).
+
+This repository contains all work related to the Codex proof system which supports proof aggregation (currently only local proof aggregation).
+
+## Quick Usage
+see [`codex-storage-proofs-circuits`](../codex-storage-proofs-circuits) to look at the circuits.
+see [`proof-input`](./proof-input) to test the circuits.
+see [`workflow`](../workflow) for an overview of the whole workflow and how to use the circuits and run them.
 
 Repository organization
 -----------------
@@ -14,8 +21,11 @@ Repository organization
 
 - [`workflow`](./workflow) contains the scripts and example code to generate input, run the circuits, generate a proof, and verify the proof.
 
+- [`goldibear_experiments`](./goldibear_experiments) contains experiments with using [Plonky2_Goldibear](https://github.com/telosnetwork/plonky2_goldibear/tree/main).
+
+- [`recursion_experiments`](./recursion_experiments) contains experiment with multiple recursion approaches prior to settling with the uniform 2-to-1 tree aggregation.
+
 Documentation
 -----------------
-See the write-ups on [plonky2 storage proofs](https://hackmd.io/@NQdG6IOmQE6astjwhJ6ACw/rJSsScfAR) and [proof recursion](https://hackmd.io/@NQdG6IOmQE6astjwhJ6ACw/rk85D2HX1e)
+See the write-ups on [plonky2 storage proofs](https://hackmd.io/@NQdG6IOmQE6astjwhJ6ACw/rJSsScfAR).
 
-**WARNING**: This repository contains work-in-progress prototypes, and has not received careful code review. It is NOT ready for production use.
