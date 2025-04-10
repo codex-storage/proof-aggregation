@@ -1,13 +1,14 @@
 use anyhow::{anyhow, Result};
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use plonky2::gates::noop::NoopGate;
 use plonky2::hash::hash_types::HashOut;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::CircuitConfig;
-use plonky2::plonk::config::GenericConfig;
+use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData};
+use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
 
-use codex_plonky2_circuits::recursion::uniform::compress::CompressionCircuit;
+use codex_plonky2_circuits::recursion::uniform::compress::{CompressionCircuit, CompressionInput};
+use codex_plonky2_circuits::recursion::uniform::tree::get_hash_of_verifier_data;
 use proof_input::params::{D, C, F, HF};
 
 /// Benchmark for building, proving, and verifying the Plonky2 circuit.
@@ -33,24 +34,23 @@ fn bench_compression_runtime(c: &mut Criterion, circuit_size: usize) -> Result<(
 
     // 2 virtual hashes (8 field elems) as public input - same as in the recursion tree
     let mut pi = vec![];
-    for i in 0..2{
+    for _i in 0..2{
         pi.push(builder.add_virtual_hash_public_input());
     }
 
     let inner_data = builder.build::<C>();
     println!("inner circuit size = {:?}", inner_data.common.degree_bits());
 
+    let inner_verifier_data: VerifierCircuitData<F,C,D> = inner_data.verifier_data();
     // prove with dummy public input
     let mut pw = PartialWitness::<F>::new();
     pw.set_hash_target(pi[0], HashOut::<F>::ZERO)?;
-    pw.set_hash_target(pi[1], HashOut::<F>::ZERO)?;
+    pw.set_hash_target(pi[1], get_hash_of_verifier_data::<F,D,C,HF>(&inner_verifier_data))?;
     let inner_proof = inner_data.prove(pw)?;
 
     // Compression circuit
-    let config = CircuitConfig::standard_recursion_config();
-    let mut builder = CircuitBuilder::<F, D>::new(config);
-    let compression_circ = CompressionCircuit::<F,D,C,HF>::new(inner_data.common.clone());
-    let compression_targets = compression_circ.build(&mut builder)?;
+    let compression_circ = CompressionCircuit::<F,D,C,HF>::new(inner_data.common.clone(), inner_data.verifier_only.clone());
+    let (compression_targets, compression_circ_data) = compression_circ.build_with_standard_config()?;
 
     // Benchmark Group
     let mut group = c.benchmark_group(format!("Compression Circuit Benchmark for inner-proof size = {}", circuit_size));
@@ -58,32 +58,29 @@ fn bench_compression_runtime(c: &mut Criterion, circuit_size: usize) -> Result<(
     // Benchmark the Circuit Building Phase
     group.bench_function("Build Circuit", |b| {
         b.iter(|| {
-            let config = CircuitConfig::standard_recursion_config();
-            let mut local_builder = CircuitBuilder::<F, D>::new(config);
-            let _compression_targets = compression_circ.build(&mut local_builder);
-            let _data = local_builder.build::<C>();
+            let _compression_targets = compression_circ.build_with_standard_config();
         })
     });
 
     // Build the circuit once for proving and verifying benchmarks
-    let compression_circ_data = builder.build::<C>();
     println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
 
-    let mut pw = PartialWitness::<F>::new();
-    compression_circ.assign_targets(&mut pw, &compression_targets, inner_proof, &inner_data.verifier_only)?;
+    let compression_input = CompressionInput{
+        inner_proof,
+    };
+
+    let verifier_data: VerifierCircuitData<F,C,D> = compression_circ_data.verifier_data();
+    let prover_data = compression_circ_data.prover_data();
 
     group.bench_function("Prove Circuit", |b| {
-        b.iter_batched(
-            || pw.clone(),
-            |local_pw| compression_circ_data.prove(local_pw).expect("Failed to prove circuit"),
-            BatchSize::SmallInput,
-        )
+        b.iter( ||
+            {
+                let _ = compression_circ.prove(&compression_targets, &compression_input, &prover_data);
+            })
     });
 
-    let proof = compression_circ_data.prove(pw)?;
+    let proof = compression_circ.prove(&compression_targets, &compression_input, &prover_data)?;
     println!("Proof size: {} bytes", proof.to_bytes().len());
-
-    let verifier_data = compression_circ_data.verifier_data();
 
     // Benchmark the Verifying Phase
     group.bench_function("Verify Proof", |b| {
@@ -96,10 +93,9 @@ fn bench_compression_runtime(c: &mut Criterion, circuit_size: usize) -> Result<(
     Ok(())
 }
 
-fn bench_compression(c: &mut Criterion) -> Result<()>{
-    bench_compression_runtime(c, 13)?;
-    bench_compression_runtime(c, 14)?;
-    Ok(())
+fn bench_compression(c: &mut Criterion){
+    bench_compression_runtime(c, 13).expect("bench failed");
+    bench_compression_runtime(c, 14).expect("bench failed");
 }
 
 /// Criterion benchmark group

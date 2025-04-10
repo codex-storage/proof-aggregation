@@ -1,4 +1,3 @@
-use plonky2::plonk::config::GenericConfig;
 use anyhow::Result;
 use std::time::Instant;
 use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
@@ -6,7 +5,7 @@ use proof_input::serialization::circuit_input::import_circ_input_from_json;
 use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput, SampleTargets};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
 use proof_input::params::{D, C, F, HF};
-use proof_input::serialization::file_paths::{CIRC_INPUT_JSON, PROVER_CIRC_DATA_JSON, TARGETS_JSON};
+use proof_input::serialization::file_paths::{CIRC_INPUT_JSON, PROVER_CIRC_DATA_JSON, TARGETS_JSON, TREE_PROOF_JSON};
 use proof_input::serialization::json::{export_proof_with_pi, import_prover_circuit_data, import_targets};
 
 fn main() -> Result<()> {
@@ -34,6 +33,7 @@ fn main() -> Result<()> {
 
     //export the proof to json file
     export_proof_with_pi(&proof_with_pis)?;
+    println!("Tree proof written to: {}", TREE_PROOF_JSON);
 
     Ok(())
 }

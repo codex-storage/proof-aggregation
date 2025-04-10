@@ -1,9 +1,7 @@
 use anyhow::Result;
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-use plonky2::iop::witness::PartialWitness;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::CircuitConfig;
-use plonky2::plonk::config::GenericConfig;
+use criterion::{criterion_group, criterion_main, Criterion};
+use plonky2::plonk::circuit_data::{CircuitData, VerifierCircuitData};
+use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
 
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use proof_input::gen_input::gen_testing_circuit_input;
@@ -12,14 +10,12 @@ use proof_input::params::{D, C, F, HF, Params};
 /// Benchmark for building, proving, and verifying the Plonky2 circuit.
 fn bench_prove_verify<const N: usize>(c: &mut Criterion) -> Result<()>{
 
-    let n_samples = N;
     // get default parameters
-    let params = Params::default();
-    let mut test_params = params.input_params;
-    test_params.n_samples = n_samples;
+    let mut params = Params::default();
+    params.set_n_samples(N);
 
-    let mut circuit_params = params.circuit_params;
-    circuit_params.n_samples = n_samples;
+    let test_params = params.input_params;
+    let circuit_params = params.circuit_params;
 
     #[cfg(feature = "parallel")]
     println!("Parallel feature is ENABLED");
@@ -27,62 +23,33 @@ fn bench_prove_verify<const N: usize>(c: &mut Criterion) -> Result<()>{
     // gen the circuit input
     let circ_input = gen_testing_circuit_input::<F,D>(&test_params);
 
-    // Create the circuit configuration
-    let config = CircuitConfig::standard_recursion_config();
-    let mut builder = CircuitBuilder::<F, D>::new(config);
-
     // Initialize the SampleCircuit with the parameters
     let circ = SampleCircuit::<F,D,HF>::new(circuit_params.clone());
-    let targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
-
-    // Create a PartialWitness and assign the circuit input
-    let mut pw = PartialWitness::new();
-    circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input.clone());
+    let (targets, data) = circ.build_with_standard_config()?;
+    let verifier_data:VerifierCircuitData<F,C,D> = data.verifier_data();
+    let prover_data = data.prover_data();
 
     // Benchmark Group: Separate benchmarks for building, proving, and verifying
-    let mut group = c.benchmark_group(format!("Sampling Circuit Benchmark for N= {}", N));
+    let mut group = c.benchmark_group(format!("Sampling Circuit Benchmark for N= {} Samples", N));
 
     // Benchmark the Circuit Building Phase
     group.bench_function("Build Circuit", |b| {
         b.iter(|| {
-            let config = CircuitConfig::standard_recursion_config();
-            let mut local_builder = CircuitBuilder::<F, D>::new(config);
-            let _targets = circ.sample_slot_circuit_with_public_input(&mut local_builder);
-            let _data = local_builder.build::<C>();
+            let _: (_, CircuitData<F, C, D>) = circ.build_with_standard_config().unwrap();
         })
     });
 
-    // Build the circuit once for proving and verifying benchmarks
-    let build_start = std::time::Instant::now();
-    let data = builder.build::<C>();
-    let build_duration = build_start.elapsed();
-    println!("Build time: {:?}", build_duration);
-    println!("Circuit size (degree bits): {:?}", data.common.degree_bits());
-
-    // let num_constr: usize = data.common
-    //     .gates
-    //     .iter()
-    //     .map(|gate| gate.0.num_constraints())
-    //     .sum();
-    //
-    // println!("Number of constraints: {}", num_constr);
-    // println!("Number of gates used: {}", data.common.gates.len());
+    // circuit size
+    println!("Circuit size (degree bits): {:?}", prover_data.common.degree_bits());
 
     group.bench_function("Prove Circuit", |b| {
-        b.iter_batched(
-            || pw.clone(),
-            |local_pw| data.prove(local_pw).expect("Failed to prove circuit"),
-            BatchSize::SmallInput,
-        )
+        b.iter(|| {
+            let _ = circ.prove(&targets, &circ_input, &prover_data);
+        })
     });
 
     // Generate the proof once for verification benchmarking
-    let prove_start = std::time::Instant::now();
-    let proof_with_pis = data.prove(pw.clone()).expect("Failed to prove circuit");
-    let prove_duration = prove_start.elapsed();
-    println!("prove time: {:?}", prove_duration);
-    let verifier_data = data.verifier_data();
-
+    let proof_with_pis = circ.prove(&targets, &circ_input, &prover_data)?;
     println!("Proof size: {} bytes", proof_with_pis.to_bytes().len());
 
     // Benchmark the Verifying Phase
@@ -96,11 +63,10 @@ fn bench_prove_verify<const N: usize>(c: &mut Criterion) -> Result<()>{
     Ok(())
 }
 
-fn bench_sampling(c: &mut Criterion) -> Result<()>{
-    bench_prove_verify::<10>(c)?;
-    bench_prove_verify::<50>(c)?;
-    bench_prove_verify::<100>(c)?;
-    Ok(())
+fn bench_sampling(c: &mut Criterion){
+    bench_prove_verify::<10>(c).expect("bench failed");
+    bench_prove_verify::<50>(c).expect("bench failed");
+    bench_prove_verify::<100>(c).expect("bench failed");
 }
 
 /// Criterion benchmark group

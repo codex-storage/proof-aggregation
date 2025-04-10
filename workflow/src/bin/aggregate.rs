@@ -1,18 +1,13 @@
 use std::env;
-use plonky2::plonk::circuit_data::CircuitConfig;
-use plonky2::plonk::config::GenericConfig;
-use plonky2::iop::witness::PartialWitness;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
 use anyhow::Result;
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use codex_plonky2_circuits::recursion::uniform::tree::TreeRecursion;
-use proof_input::gen_input::gen_testing_circuit_input;
-use proof_input::params::{D, C, F, HF, Params};
+use proof_input::params::{D, C, F, HF};
+use proof_input::serialization::file_paths::{PROOF_JSON, TREE_PROOF_JSON, VERIFIER_CIRC_DATA_JSON};
+use proof_input::serialization::json::{export_tree_proof_with_pi, import_proof_with_pi, import_verifier_circuit_data};
 
 fn main() -> Result<()> {
     // load the parameters from environment variables
-    let params = Params::from_env()?;
     const N: usize = 1;
     const M: usize = 2;
 
@@ -26,31 +21,24 @@ fn main() -> Result<()> {
         4
     };
 
-    // generate circuit input with given parameters
-    let circ_input = gen_testing_circuit_input::<F,D>(&params.input_params);
+    // Read the proof
+    let proof_with_pi = import_proof_with_pi::<F,C,D>()?;
+    println!("Proof with public input imported from: {}", PROOF_JSON);
 
-    // create the circuit
-    let config = CircuitConfig::standard_recursion_config();
-    let mut builder = CircuitBuilder::<F, D>::new(config);
-    let circ = SampleCircuit::<F,D,HF>::new(params.circuit_params);
-    let mut targets = circ.sample_slot_circuit_with_public_input(&mut builder)?;
+    // read the circuit data
+    let verifier_data = import_verifier_circuit_data::<F,C,D>()?;
+    println!("Verifier circuit data imported from: {}", VERIFIER_CIRC_DATA_JSON);
 
-    // create a PartialWitness and assign
-    let mut pw = PartialWitness::new();
-    circ.sample_slot_assign_witness(&mut pw, &targets, &circ_input)?;
+    // duplicate the proof to get k proofs
+    // this is just for testing - in real scenario we would need to load k proofs
+    let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..k).map(|_i| proof_with_pi.clone()).collect();
 
-    // Build the circuit
-    let data = builder.build::<C>();
-
-    // Prove the inner-circuit with the assigned witness
-    let inner_proof = data.prove(pw)?;
-
-    // dummy proofs
-    let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..k).map(|i| inner_proof.clone()).collect();
-
-    let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build_with_standard_config(data.common.clone(), data.verifier_only.clone()).unwrap();
+    let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build_with_standard_config(verifier_data.common.clone(), verifier_data.verifier_only.clone()).unwrap();
 
     let tree_proof = tree.prove_tree(&proofs).unwrap();
+    //export the proof to json file
+    export_tree_proof_with_pi(&tree_proof)?;
+    println!("Tree proof written to: {}", TREE_PROOF_JSON);
 
     let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
 

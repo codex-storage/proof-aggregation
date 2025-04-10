@@ -2,7 +2,6 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use anyhow::Result;
 
 use proof_input::merkle_tree::merkle_safe::{MerkleTree};
-use plonky2::field::types::Field;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher, PoseidonGoldilocksConfig};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
@@ -28,13 +27,13 @@ fn prepare_data<
     const D: usize,
     C: GenericConfig<D, F = F>,
     H: Hasher<F> + AlgebraicHasher<F>,
->(N: usize, max_depth: usize) -> Result<(
+>(n: usize, max_depth: usize) -> Result<(
     Vec<MerkleTreeCircuitInput<F, D>>,
     HashOut<F>,
 )> {
     // Generate random leaf data
-    let nleaves = 16; // Number of leaves
-    let data = (0..nleaves)
+    let n_leaves = 16; // Number of leaves
+    let data = (0..n_leaves)
         .map(|i| F::from_canonical_u64(i))
         .collect::<Vec<_>>();
     // Hash the data to obtain leaf hashes
@@ -53,7 +52,7 @@ fn prepare_data<
     let tree = MerkleTree::<F, D>::new(&leaves, zero_hash)?;
 
     // Select N leaf indices to prove
-    let leaf_indices: Vec<usize> = (0..N).collect();
+    let leaf_indices: Vec<usize> = (0..n).collect();
 
     // Get the Merkle proofs for the selected leaves
     let proofs: Vec<_> = leaf_indices
@@ -63,9 +62,9 @@ fn prepare_data<
 
     let mut circ_inputs = vec![];
 
-    for i in 0..N{
+    for i in 0..n {
         let path_bits = usize_to_bits_le(leaf_indices[i], max_depth);
-        let last_index = (nleaves - 1) as usize;
+        let last_index = (n_leaves - 1) as usize;
         let last_bits = usize_to_bits_le(last_index, max_depth);
         let mask_bits = usize_to_bits_le(last_index, max_depth+1);
 
@@ -118,7 +117,7 @@ fn build_circuit<
 
         //assign input
         assign_witness(&mut pw, &mut targets, circ_inputs[i].clone())?;
-        pw.set_hash_target(expected_root_target, expected_root);
+        pw.set_hash_target(expected_root_target, expected_root)?;
     }
 
     // Build the circuit
@@ -136,9 +135,9 @@ fn merkle_proof_benchmark<
     let mut group = c.benchmark_group("Merkle Proof Benchmark");
 
     // Prepare the data that will be used in all steps
-    let N = 5; // Number of leaves to prove
+    let n = 5; // Number of leaves to prove
     let max_depth = 4;
-    let (circ_input, expected_root) = prepare_data::<F, D,C,H>(N, max_depth).unwrap();
+    let (circ_input, expected_root) = prepare_data::<F, D,C,H>(n, max_depth).unwrap();
 
     // Benchmark the circuit building
     group.bench_function("Merkle Proof Build", |b| {
