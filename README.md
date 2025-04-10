@@ -7,7 +7,9 @@ This repository contains all work related to the Codex proof system which suppor
 
 ## Quick Usage
 see [`codex-storage-proofs-circuits`](../codex-storage-proofs-circuits) to look at the circuits.
+
 see [`proof-input`](./proof-input) to test the circuits.
+
 see [`workflow`](../workflow) for an overview of the whole workflow and how to use the circuits and run them.
 
 Repository organization
