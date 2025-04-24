@@ -10,6 +10,7 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError,Result};
 use crate::circuit_helper::Plonky2Circuit;
 
+//TODO: include the flag_buckets in the public input
 /// recursion compression circuit
 /// verifies 1 inner proof and as result should shrink it
 #[derive(Clone, Debug)]
@@ -82,7 +83,7 @@ impl<
         let inner_pub_input = vir_proof.public_inputs.clone();
 
         // take the public input from inner proof & make it public
-        assert_eq!(inner_pub_input.len(), 8);
+        assert!(inner_pub_input.len() >= 8);
         if register_pi {
             builder.register_public_inputs(&inner_pub_input[0..4]);
         }

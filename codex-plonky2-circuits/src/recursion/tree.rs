@@ -7,11 +7,12 @@ use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use plonky2_field::extension::Extendable;
 use crate::{error::CircuitError, Result};
+use crate::bundle::Bundle;
 use crate::circuit_helper::Plonky2Circuit;
-use crate::recursion::uniform::{leaf::{LeafTargets,LeafCircuit},node::{NodeTargets,NodeCircuit}};
-use crate::recursion::uniform::compress::{CompressionCircuit, CompressionInput, CompressionTargets};
-use crate::recursion::uniform::leaf::LeafInput;
-use crate::recursion::uniform::node::NodeInput;
+use crate::recursion::{leaf::{LeafTargets, LeafCircuit}, node::{NodeTargets, NodeCircuit}};
+use crate::recursion::compress::{CompressionCircuit, CompressionInput, CompressionTargets};
+use crate::recursion::leaf::LeafInput;
+use crate::recursion::node::NodeInput;
 
 /// tree recursion
 /// - `N`: Number of inner-proofs aggregated at the leaf level.
@@ -23,11 +24,12 @@ pub struct TreeRecursion<
     H: AlgebraicHasher<F>,
     const N: usize,
     const M: usize,
+    const T: usize,
 > where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
-    leaf: LeafCircuit<F, D, C, H, N>,
-    node: NodeCircuit<F, D, C, H, M>,
+    leaf: LeafCircuit<F, D, C, H, N, T>,
+    node: NodeCircuit<F, D, C, H, M, T>,
     compression: CompressionCircuit<F, D, C, H>,
     leaf_circ_data: CircuitData<F, C, D>,
     node_circ_data: CircuitData<F, C, D>,
@@ -45,7 +47,8 @@ impl<
     H: AlgebraicHasher<F>,
     const N: usize,
     const M: usize,
-> TreeRecursion<F, D, C, H, N, M> where
+    const T: usize,
+> TreeRecursion<F, D, C, H, N, M, T> where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
 {
     /// build with standard recursion config
@@ -67,20 +70,20 @@ impl<
         config: CircuitConfig,
     ) -> Result<Self> {
         // build leaf with standard recursion config
-        let leaf = LeafCircuit::<_,D,_,_,N>::new(inner_common_data, inner_verifier_data);
+        let leaf = LeafCircuit::<_,D,_,_,N, T>::new(inner_common_data, inner_verifier_data);
         let (leaf_targets, leaf_circ_data) = leaf.build(config.clone())?;
-        // println!("leaf circuit size = {:?}", leaf_circ_data.common.degree_bits());
+        println!("leaf circuit size = {:?}", leaf_circ_data.common.degree_bits());
 
         // build node with standard recursion config
-        let node = NodeCircuit::<_,D,_,_,M>::new(leaf_circ_data.common.clone(), leaf_circ_data.verifier_only.clone());
+        let node = NodeCircuit::<_,D,_,_,M, T>::new(leaf_circ_data.common.clone(), leaf_circ_data.verifier_only.clone());
         let (node_targets, node_circ_data) = node.build(config.clone())?;
-        // println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
+        println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
 
         // compression build
         let node_common = node_circ_data.common.clone();
         let compression_circ = CompressionCircuit::new(node_common, node_circ_data.verifier_only.clone());
         let (compression_targets, compression_circ_data) = compression_circ.build(config.clone())?;
-        // println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
+        println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
 
         Ok(Self{
             leaf,
@@ -110,6 +113,10 @@ impl<
 
     pub fn get_node_verifier_data(&self) -> VerifierCircuitData<F, C, D>{
         self.node_circ_data.verifier_data()
+    }
+
+    pub fn prove_bundle(bundle: Bundle<F, C, D, H>){
+
     }
 
     pub fn prove_tree_and_compress(
@@ -163,9 +170,11 @@ impl<
 
         let mut leaf_proofs = vec![];
 
-        for proofs in proofs_with_pi.chunks(N){
+        for (i, proofs) in proofs_with_pi.chunks(N).enumerate(){
             let leaf_input = LeafInput{
                 inner_proof: proofs.to_vec(),
+                flag: true,
+                index: i,
             };
 
             let mut pw = PartialWitness::<F>::new();
@@ -196,7 +205,7 @@ impl<
 
         let condition = if level == 0 {false} else {true};
 
-        for chunk in proofs_with_pi.chunks(M) {
+        for (i, chunk) in proofs_with_pi.chunks(M).enumerate() {
 
             let mut inner_pw = PartialWitness::new();
 
@@ -204,6 +213,8 @@ impl<
                 node_proofs: chunk.to_vec().clone(),
                 verifier_only_data: verifier_only_data.clone(),
                 condition,
+                flags: [true; M].to_vec(),
+                index: i,
             };
 
             self.node.assign_targets(
@@ -257,7 +268,7 @@ impl<
         public_input: Vec<F>,
         inner_public_input: Vec<Vec<F>>,
     ) -> Result<()>{
-        assert_eq!(public_input.len(), 8);
+        assert!(public_input.len() >= 8);
 
         let given_input_hash = &public_input[0..4];
         let given_vd_hash = &public_input[4..8];
@@ -316,4 +327,64 @@ pub fn get_hash_of_verifier_data<
     }
 
     H::hash_no_pad(&vd)
+}
+
+#[cfg(test)]
+mod tests {
+    use plonky2::gates::noop::NoopGate;
+    use super::*;
+    use plonky2::plonk::config::PoseidonGoldilocksConfig;
+    use plonky2::plonk::circuit_builder::CircuitBuilder;
+    use plonky2::plonk::config::GenericConfig;
+    use plonky2_field::types::Field;
+    use plonky2::plonk::circuit_data::CircuitConfig;
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+    use plonky2::iop::witness::WitnessWrite;
+
+    const D: usize = 2;
+    type C = PoseidonGoldilocksConfig;
+    type F = <C as GenericConfig<D>>::F;
+    type H = Poseidon2Hash;
+
+    // A helper to build a minimal circuit and returns T proofs & circuit data.
+    fn dummy_proofs<const T: usize>() -> (CircuitData<F, C, D>, Vec<ProofWithPublicInputs<F, C, D>>) {
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        for _ in 0..8192 {
+            builder.add_gate(NoopGate, vec![]);
+        }
+        // Add one virtual public input so that the circuit has minimal structure.
+        let t = builder.add_virtual_public_input();
+        let circuit = builder.build::<C>();
+        println!("inner circuit size = {}", circuit.common.degree_bits());
+        let mut pw = PartialWitness::<F>::new();
+        pw.set_target(t, F::ZERO).expect("faulty assign");
+        let proofs = (0..T).map(|_i| circuit.prove(pw.clone()).unwrap()).collect();
+        (circuit, proofs)
+    }
+
+
+    // End-to-End test for the entire Tree circuit.
+    #[test]
+    fn test_full_tree_circuit() -> anyhow::Result<()> {
+        const N: usize = 1;
+        const M: usize = 2;
+        const T: usize = 4;
+
+        let (data, proofs) = dummy_proofs::<T>();
+
+        let mut tree = TreeRecursion::<F,D,C,H, N, M, T>::build_with_standard_config(data.common.clone(), data.verifier_only.clone())?;
+
+        // aggregate - no compression
+        let root = tree.prove_tree(&proofs)?;
+        println!("pub input size = {}", root.public_inputs.len());
+        println!("proof size = {:?} bytes", root.to_bytes().len());
+
+        assert!(
+            tree.verify_proof(root, false).is_ok(),
+            "proof verification failed"
+        );
+
+        Ok(())
+    }
 }

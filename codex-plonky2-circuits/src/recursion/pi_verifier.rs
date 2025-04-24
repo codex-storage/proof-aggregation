@@ -11,6 +11,7 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError, Result};
 use crate::circuit_helper::Plonky2Circuit;
 
+// TODO: include the flag_buckets in the public input
 /// A circuit that verifies the aggregated public inputs from inner circuits.
 ///
 /// - `N`: Number of inner-proofs aggregated at the leaf level.
