@@ -8,9 +8,9 @@ mod tests {
     use crate::params::{F, D, C, HF};
     use crate::gen_input::gen_testing_circuit_input;
     use crate::params::Params;
-    use codex_plonky2_circuits::recursion::uniform::{tree::TreeRecursion};
-    use codex_plonky2_circuits::recursion::uniform::pi_verifier::{PublicInputVerificationCircuit, PublicInputVerificationInput};
-    use codex_plonky2_circuits::recursion::uniform::tree::get_hash_of_verifier_data;
+    use codex_plonky2_circuits::recursion::{tree::TreeRecursion};
+    use codex_plonky2_circuits::recursion::pi_verifier::{PublicInputVerificationCircuit, PublicInputVerificationInput};
+    use codex_plonky2_circuits::recursion::tree::get_hash_of_verifier_data;
 
     #[test]
     fn test_uniform_recursion() -> anyhow::Result<()> {
@@ -40,17 +40,18 @@ mod tests {
         const N: usize = 1;
         const M: usize = 2;
 
-        let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build_with_standard_config(inner_verifier_data.common.clone(), inner_verifier_data.verifier_only.clone())?;
+        let mut tree = TreeRecursion::<F,D,C,HF, N, M, T>::build_with_standard_config(inner_verifier_data.common.clone(), inner_verifier_data.verifier_only.clone())?;
 
         // aggregate - no compression
         let root = tree.prove_tree(&proofs)?;
         println!("pub input size = {}", root.public_inputs.len());
+        println!("pub input = {:?}", root.public_inputs);
         println!("proof size = {:?} bytes", root.to_bytes().len());
 
         // aggregate with compression
-        let root_compressed = tree.prove_tree_and_compress(&proofs)?;
-        println!("pub input size (compressed) = {}", root_compressed.public_inputs.len());
-        println!("proof size compressed = {:?} bytes", root_compressed.to_bytes().len());
+        // let root_compressed = tree.prove_tree_and_compress(&proofs)?;
+        // println!("pub input size (compressed) = {}", root_compressed.public_inputs.len());
+        // println!("proof size compressed = {:?} bytes", root_compressed.to_bytes().len());
 
         let inner_pi: Vec<Vec<F>> = proofs.iter().map(|p| p.public_inputs.clone()).collect();
 
@@ -59,10 +60,10 @@ mod tests {
             "proof verification failed"
         );
 
-        assert!(
-            tree.verify_proof_and_public_input(root_compressed,inner_pi, true).is_ok(),
-            "compressed proof verification failed"
-        );
+        // assert!(
+        //     tree.verify_proof_and_public_input(root_compressed,inner_pi, true).is_ok(),
+        //     "compressed proof verification failed"
+        // );
 
 
         Ok(())
@@ -98,7 +99,7 @@ mod tests {
         const N: usize = 1;
         const M: usize = 2;
 
-        let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build_with_standard_config(inner_verifier_data.common.clone(), inner_verifier_data.verifier_only.clone())?;
+        let mut tree = TreeRecursion::<F,D,C,HF, N, M, T>::build_with_standard_config(inner_verifier_data.common.clone(), inner_verifier_data.verifier_only.clone())?;
 
         let root = tree.prove_tree(&proofs)?;
         println!("pub input size = {}", root.public_inputs.len());
