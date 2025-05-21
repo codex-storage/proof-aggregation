@@ -1,7 +1,7 @@
 use std::env;
 use anyhow::Result;
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use codex_plonky2_circuits::recursion::uniform::tree::TreeRecursion;
+use codex_plonky2_circuits::recursion::tree::TreeRecursion;
 use proof_input::params::{D, C, F, HF};
 use proof_input::serialization::file_paths::{PROOF_JSON, TREE_PROOF_JSON, VERIFIER_CIRC_DATA_JSON};
 use proof_input::serialization::json::{export_tree_proof_with_pi, import_proof_with_pi, import_verifier_circuit_data};
@@ -13,13 +13,28 @@ fn main() -> Result<()> {
 
     // take k = "number of proofs" from env arguments; default to 4 if not there
     let args: Vec<String> = env::args().collect();
-    let k: usize = if args.len() > 1 {
-        args[1]
-            .parse()
-            .expect("k not valid")
-    } else {
-        4
-    };
+    let t: usize = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(4);
+
+    match t {
+        2 => run_tree::<2>()?,
+        4 => run_tree::<4>()?,
+        8 => run_tree::<8>()?,
+        16 => run_tree::<2>()?,
+        32 => run_tree::<4>()?,
+        64 => run_tree::<8>()?,
+        128 => run_tree::<2>()?,
+        256 => run_tree::<4>()?,
+        512 => run_tree::<8>()?,
+        1024 => run_tree::<8>()?,
+        other => panic!("unsupported proof count: {}", other),
+    }
+
+    Ok(())
+}
+
+fn run_tree<const T: usize>() -> Result<()> {
+    const N: usize = 1;
+    const M: usize = 2;
 
     // Read the proof
     let proof_with_pi = import_proof_with_pi::<F,C,D>()?;
@@ -31,9 +46,9 @@ fn main() -> Result<()> {
 
     // duplicate the proof to get k proofs
     // this is just for testing - in real scenario we would need to load k proofs
-    let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..k).map(|_i| proof_with_pi.clone()).collect();
+    let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| proof_with_pi.clone()).collect();
 
-    let mut tree = TreeRecursion::<F,D,C,HF, N, M>::build_with_standard_config(verifier_data.common.clone(), verifier_data.verifier_only.clone()).unwrap();
+    let mut tree = TreeRecursion::<F,D,C,HF, N, M, T>::build_with_standard_config(verifier_data.common.clone(), verifier_data.verifier_only.clone()).unwrap();
 
     let tree_proof = tree.prove_tree(&proofs).unwrap();
     //export the proof to json file
