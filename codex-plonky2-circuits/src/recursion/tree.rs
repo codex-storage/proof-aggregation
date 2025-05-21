@@ -30,7 +30,7 @@ pub struct TreeRecursion<
 {
     leaf: LeafCircuit<F, D, C, H, N, T>,
     node: NodeCircuit<F, D, C, H, M, T>,
-    compression: CompressionCircuit<F, D, C, H>,
+    compression: CompressionCircuit<F, D, C>,
     leaf_circ_data: CircuitData<F, C, D>,
     node_circ_data: CircuitData<F, C, D>,
     compression_circ_data: CircuitData<F, C, D>,
@@ -80,8 +80,8 @@ impl<
         println!("node circuit size = {:?}", node_circ_data.common.degree_bits());
 
         // compression build
-        let node_common = node_circ_data.common.clone();
-        let compression_circ = CompressionCircuit::new(node_common, node_circ_data.verifier_only.clone());
+        // let node_common = node_circ_data.common.clone();
+        let compression_circ = CompressionCircuit::new(node_circ_data.verifier_data());
         let (compression_targets, compression_circ_data) = compression_circ.build(config.clone())?;
         println!("compress circuit size = {:?}", compression_circ_data.common.degree_bits());
 
