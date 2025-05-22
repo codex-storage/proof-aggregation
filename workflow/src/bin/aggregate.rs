@@ -8,8 +8,7 @@ use proof_input::serialization::json::{export_tree_proof_with_pi, import_proof_w
 
 fn main() -> Result<()> {
     // load the parameters from environment variables
-    const N: usize = 1;
-    const M: usize = 2;
+    const N: usize = 2;
 
     // take k = "number of proofs" from env arguments; default to 4 if not there
     let args: Vec<String> = env::args().collect();
@@ -33,9 +32,7 @@ fn main() -> Result<()> {
 }
 
 fn run_tree<const T: usize>() -> Result<()> {
-    const N: usize = 1;
-    const M: usize = 2;
-
+    const N: usize = 2;
     // Read the proof
     let proof_with_pi = import_proof_with_pi::<F,C,D>()?;
     println!("Proof with public input imported from: {}", PROOF_JSON);
@@ -48,9 +45,9 @@ fn run_tree<const T: usize>() -> Result<()> {
     // this is just for testing - in real scenario we would need to load k proofs
     let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| proof_with_pi.clone()).collect();
 
-    let mut tree = TreeRecursion::<F,D,C,HF, N, M, T>::build_with_standard_config(verifier_data.common.clone(), verifier_data.verifier_only.clone()).unwrap();
+    let mut tree = TreeRecursion::<F,D,C,HF, N, T>::build_with_standard_config(verifier_data.clone()).unwrap();
 
-    let tree_proof = tree.prove_tree(&proofs).unwrap();
+    let tree_proof = tree.prove_tree_and_compress(&proofs).unwrap();
     //export the proof to json file
     export_tree_proof_with_pi(&tree_proof)?;
     println!("Tree proof written to: {}", TREE_PROOF_JSON);
