@@ -15,24 +15,23 @@ fn main() -> Result<()> {
     let t: usize = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(4);
 
     match t {
-        2 => run_tree::<2>()?,
-        4 => run_tree::<4>()?,
-        8 => run_tree::<8>()?,
-        16 => run_tree::<2>()?,
-        32 => run_tree::<4>()?,
-        64 => run_tree::<8>()?,
-        128 => run_tree::<2>()?,
-        256 => run_tree::<4>()?,
-        512 => run_tree::<8>()?,
-        1024 => run_tree::<8>()?,
+        2 => run_tree::<N,2>()?,
+        4 => run_tree::<N, 4>()?,
+        8 => run_tree::<N, 8>()?,
+        16 => run_tree::<N, 16>()?,
+        32 => run_tree::<N, 32>()?,
+        64 => run_tree::<N, 64>()?,
+        128 => run_tree::<N, 128>()?,
+        256 => run_tree::<N, 256>()?,
+        512 => run_tree::<N, 512>()?,
+        1024 => run_tree::<N, 1024>()?,
         other => panic!("unsupported proof count: {}", other),
     }
 
     Ok(())
 }
 
-fn run_tree<const T: usize>() -> Result<()> {
-    const N: usize = 2;
+fn run_tree<const N: usize, const T: usize>() -> Result<()> {
     // Read the proof
     let proof_with_pi = import_proof_with_pi::<F,C,D>()?;
     println!("Proof with public input imported from: {}", PROOF_JSON);
