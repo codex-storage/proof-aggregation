@@ -1,9 +1,11 @@
-use plonky2::hash::hash_types::RichField;
+use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::plonk::circuit_data::VerifierCircuitData;
+use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::Poseidon2;
-use crate::recursion::leaf::{BUCKET_SIZE, LeafCircuit};
+use crate::recursion::leaf::BUCKET_SIZE;
 
 /// Splits a target `index` which is known to lie in the range [0, T)
 /// where T = bucket_size * num_buckets
@@ -135,6 +137,26 @@ pub fn bucket_count(t: usize) -> usize {
     (t + BUCKET_SIZE -1) / BUCKET_SIZE
 }
 
+/// helper fn to generate hash of verifier data
+pub fn get_hash_of_verifier_data<
+    F: RichField + Extendable<D> + Poseidon2,
+    const D: usize,
+    C: GenericConfig<D, F = F>,
+    H: AlgebraicHasher<F>,
+>(verifier_data: &VerifierCircuitData<F, C, D>) -> HashOut<F> where
+    <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>
+{
+    let mut vd = vec![];
+    let digest: &HashOut<F> = &verifier_data.verifier_only.circuit_digest;
+    let caps = &verifier_data.verifier_only.constants_sigmas_cap;
+    vd.extend_from_slice(&digest.elements);
+    for i in 0..verifier_data.common.config.fri_config.num_cap_elements() {
+        let cap_hash = caps.0[i] as HashOut<F>;
+        vd.extend_from_slice(&cap_hash.elements);
+    }
+
+    H::hash_no_pad(&vd)
+}
 
 #[cfg(test)]
 mod tests {

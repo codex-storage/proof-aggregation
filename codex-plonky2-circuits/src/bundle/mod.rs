@@ -30,7 +30,7 @@ impl<
     const D: usize,
     H: AlgebraicHasher<F>,
 > Bundle<F, C, D, H> {
-    pub fn new(bundle_size: usize, circuit_params: CircuitParams) -> Result<(Self)>{
+    pub fn new(bundle_size: usize, circuit_params: CircuitParams) -> Result<Self>{
         let samp_circ = SampleCircuit::<F, D, H>::new(circuit_params.clone());
         let (sample_targets, circuit_data) = samp_circ.build_with_standard_config()?;
         println!("sampling circuit built. Degree bits = {:?}", circuit_data.common.degree_bits());
