@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
-use plonky2::hash::hash_types::{ HashOutTarget, RichField};
+use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::{CircuitBuilder};
-use plonky2::plonk::circuit_data::{CommonCircuitData, VerifierOnlyCircuitData};
+use plonky2::plonk::circuit_data::VerifierCircuitData;
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
@@ -12,9 +12,7 @@ use crate::{error::CircuitError, Result};
 use crate::circuit_helper::Plonky2Circuit;
 
 /// A circuit that verifies the aggregated public inputs from inner circuits.
-///
-/// - `N`: Number of inner-proofs aggregated at the leaf level.
-/// - `M`: Number of leaf proofs aggregated at the node level.
+/// - `N`: Number of leaf proofs aggregated at the node level.
 /// - `T`: Total Number of inner-proofs.
 /// - `K`: Number of public input field elements per inner-proof (sampling proof).
 #[derive(Clone, Debug)]
@@ -24,14 +22,12 @@ pub struct PublicInputVerificationCircuit<
     C: GenericConfig<D, F = F>,
     H: AlgebraicHasher<F>,
     const N: usize,
-    const M: usize,
     const T: usize,
     const K: usize,
 > where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
 {
-    pub node_common_data: CommonCircuitData<F, D>,
-    pub node_verifier_data: VerifierOnlyCircuitData<C, D>,
+    pub node_verifier_data: VerifierCircuitData<F, C, D>,
     phantom: PhantomData<H>,
 }
 
@@ -45,7 +41,7 @@ pub struct PublicInputVerificationTargets<const D: usize> {
 }
 
 /// input to the circuit for public input verification
-/// - `inner_proof`: The tree root proof with 2 hash digests (8 Goldilocks field elements) public inputs [pi_hash, vd_hash].
+/// - `inner_proof`: The tree root proof with public inputs: [pi_hash, vd_hash, ...].
 /// - `inner_pub_inputs_vals`: T×K public input values from inner proofs.
 #[derive(Clone, Debug)]
 pub struct PublicInputVerificationInput<
@@ -57,8 +53,8 @@ pub struct PublicInputVerificationInput<
     pub inner_pub_inputs_vals: Vec<Vec<F>>,
 }
 
-impl<F, const D: usize, C, H, const N: usize, const M: usize, const T: usize, const K: usize>
-PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
+impl<F, const D: usize, C, H, const N: usize, const T: usize, const K: usize>
+PublicInputVerificationCircuit<F, D, C, H, N, T, K>
     where
         F: RichField + Extendable<D> + Poseidon2,
         C: GenericConfig<D, F = F>,
@@ -67,22 +63,20 @@ PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
 {
     /// Create a new instance of the circuit.
     pub fn new(
-        node_common_data: CommonCircuitData<F, D>,
-        node_verifier_data: VerifierOnlyCircuitData<C, D>,
+        node_verifier_data: VerifierCircuitData<F, C, D>,
     ) -> Self {
-        // we expect exactly 8 public inputs from the tree root proof
-        // 4 for the final aggregated public-input hash, 4 for the node verifier-data hash
-        assert_eq!(node_common_data.num_public_inputs, 8);
+        // we expect at least 4 public inputs from the tree root proof
+        // 1 hash digest (4 Goldilocks) for the final aggregated public-input hash
+        assert!(node_verifier_data.common.num_public_inputs >= 4);
 
         Self {
-            node_common_data,
             node_verifier_data,
             phantom: PhantomData,
         }
     }
 }
-impl<F, const D: usize, C, H, const N: usize, const M: usize, const T: usize, const K: usize>
-Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, M, T, K>
+impl<F, const D: usize, C, H, const N: usize, const T: usize, const K: usize>
+Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, T, K>
     where
         F: RichField + Extendable<D> + Poseidon2,
         C: GenericConfig<D, F = F>,
@@ -93,19 +87,19 @@ Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, M, T, 
     type Input = PublicInputVerificationInput<F, D, C>;
 
     /// Builds the circuit by:
-    /// 1. Verifies a proof target with 8 public inputs (the final [pi_hash, vd_hash]).
+    /// 1. Verifies a proof target with public inputs (the final [pi_hash, vd_hash, ...]).
     /// 2. verifies correct tree hashing of all T×K targets to represent all inner public inputs.
-    /// 3. verifies correct node_verifier_date used is the same as in public input (last 4 field elements).
+    /// 3. register the un-hashed inner public input as this circuit public input + the rest of the inner public input
     fn add_targets(&self, builder: &mut CircuitBuilder<F, D>, register_pi: bool) -> Result<PublicInputVerificationTargets<D>> {
         // Add a virtual proof with 8 public inputs. This is the final root proof whose
         // public inputs we want to check in-circuit.
-        let inner_proof = builder.add_virtual_proof_with_pis(&self.node_common_data);
+        let inner_proof = builder.add_virtual_proof_with_pis(&self.node_verifier_data.common);
 
         // Create a constant VerifierCircuitTarget for the node's verifier data.
-        let const_node_vd = builder.constant_verifier_data(&self.node_verifier_data);
+        let const_node_vd = builder.constant_verifier_data(&self.node_verifier_data.verifier_only);
 
         // verify the proof
-        builder.verify_proof::<C>(&inner_proof, &const_node_vd, &self.node_common_data);
+        builder.verify_proof::<C>(&inner_proof, &const_node_vd, &self.node_verifier_data.common);
 
         // create T×K targets for all inner public inputs from the base level.
         let mut inner_pub_inputs = Vec::with_capacity(T);
@@ -125,59 +119,39 @@ Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, M, T, 
         //   Summary of the logic:
         //
         //   let final_pi = proof.public_inputs[0..4];
-        //   let node_vd = proof.public_inputs[4..8];
         //   ...
-        //   leaf-level pub inputs tree hashing: chunks of N -> hash
-        //   node-level pub inputs tree hashing: chunks of M -> hash
+        //   leaf-level pub inputs tree hashing
+        //   node-level pub inputs tree hashing: chunks of N -> hash
         //   ...
         //   check final result matches final_pi
         // ------------------------------------------------------------------
 
-        // Extract the final 4 field elements for the public-input hash & next 4 for the verifier-data hash.
-        let final_pi_hash_t = &inner_proof.public_inputs[0..4];
-        let node_vd_hash_t = &inner_proof.public_inputs[4..8];
-
-        // Compute node_hash in-circuit
-        let mut node_vd_input_t = Vec::new();
-        node_vd_input_t.extend_from_slice(&const_node_vd.circuit_digest.elements);
-        for cap_elem in const_node_vd.constants_sigmas_cap.0.iter() {
-            node_vd_input_t.extend_from_slice(&cap_elem.elements);
-        }
-        let node_hash_t = builder.hash_n_to_hash_no_pad::<H>(node_vd_input_t);
-        // make sure the VerifierData we use is the same as the tree root hash of the VerifierData
-        builder.connect_hashes(node_hash_t,HashOutTarget::from_vec(node_vd_hash_t.to_vec()));
-        if register_pi {
-            builder.register_public_inputs(&node_hash_t.elements); // public input
-        }
+        // Extract the final 4 field elements for the public-input hash & the rest for the verifier-data hash, index, and flags.
+        let final_pi_hash_target = &inner_proof.public_inputs[0..4];
+        let rest_of_inner_pi = &inner_proof.public_inputs[4..];
+        builder.register_public_inputs(&rest_of_inner_pi); // public input
 
         let mut pub_in_hashes_t = Vec::new();
 
-        // Leaf level hashing: chunks of N
-        let base_chunks = T / N; // T is assumed to be multiple of N
-        for i in 0..base_chunks {
-            // flatten the inputs from i*N .. i*N + N
-            let mut chunk_targets = Vec::with_capacity(N * K);
-            for row_idx in (i * N)..(i * N + N) {
-                chunk_targets.extend_from_slice(&inner_pub_inputs[row_idx]);
-            }
+        // Leaf level hashing - hash each row i = 0..T of inner_pub_inputs matrix
+        for i in 0..T {
             // hash
-            let pi_hash_chunk = builder.hash_n_to_hash_no_pad::<H>(chunk_targets);
-
-            // track these in vectors
+            let pi_hash_chunk = builder.hash_n_to_hash_no_pad::<H>(inner_pub_inputs[i].clone());
+            // track these in hash digests
             pub_in_hashes_t.push(pi_hash_chunk);
         }
 
         // Now at the node level:
-        let mut current_len = base_chunks;
+        let mut current_len = 0;
         while current_len > 1 {
 
-            let next_len = (current_len + (M - 1)) / M;
+            let next_len = (current_len + (N - 1)) / N;
 
             let mut next_pub_in_hashes_t = Vec::with_capacity(next_len);
 
             for i in 0..next_len {
-                let start_idx = i * M;
-                let end_idx = (start_idx + M).min(current_len);
+                let start_idx = i * N;
+                let end_idx = (start_idx + N).min(current_len);
 
                 // flatten all pub_in_hashes in [start_idx..end_idx]
                 let mut pi_flat = Vec::with_capacity((end_idx - start_idx) * 4);
@@ -197,7 +171,7 @@ Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, M, T, 
 
         // connect them to the final 4 public inputs of `inner_proof`.
         for i in 0..4 {
-            builder.connect(final_pi_hash_t[i], final_computed_pi_t.elements[i]);
+            builder.connect(final_pi_hash_target[i], final_computed_pi_t.elements[i]);
         }
 
         // return all the targets
@@ -213,7 +187,7 @@ Plonky2Circuit<F, C, D> for PublicInputVerificationCircuit<F, D, C, H, N, M, T, 
         targets: &Self::Targets,
         input: &Self::Input,
     ) -> Result<()> {
-        // Assign the final proof - it should have 8 public inputs
+        // Assign the tree root proof
         pw.set_proof_with_pis_target(&targets.inner_proof, &input.inner_proof)
             .map_err(|e| {
                 CircuitError::ProofTargetAssignmentError("final-proof".to_string(), e.to_string())
