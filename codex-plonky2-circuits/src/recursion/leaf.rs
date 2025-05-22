@@ -180,7 +180,7 @@ mod tests {
     use plonky2::plonk::config::GenericConfig;
     use plonky2_field::types::PrimeField64;
     use plonky2::plonk::circuit_data::{CircuitConfig, CommonCircuitData};
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;
 
     // For our tests, we define:
     const D: usize = 2;

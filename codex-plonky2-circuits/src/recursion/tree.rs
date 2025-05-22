@@ -307,7 +307,7 @@ mod tests {
     use plonky2::plonk::config::GenericConfig;
     use plonky2_field::types::Field;
     use plonky2::plonk::circuit_data::CircuitConfig;
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;
     use plonky2::iop::witness::WitnessWrite;
 
     const D: usize = 2;

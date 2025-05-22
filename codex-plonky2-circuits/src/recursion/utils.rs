@@ -166,14 +166,13 @@ mod tests {
     use plonky2::plonk::config::GenericConfig;
     use plonky2_field::types::{Field, PrimeField64};
     use plonky2::plonk::circuit_data::CircuitConfig;
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+    // use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
     use plonky2::iop::witness::PartialWitness;
 
     // For our tests, we define:
     const D: usize = 2;
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
-    type H = Poseidon2Hash;
 
     // Helper: Build, prove, and return public inputs ---
     fn build_and_prove(builder: CircuitBuilder<F, D>) -> Vec<F> {

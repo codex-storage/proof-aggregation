@@ -18,6 +18,9 @@ plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
 itertools = { workspace = true }
 plonky2_maybe_rayon = { workspace = true }
 hashbrown = "0.14.5"
+ff = { package = "ff", version = "0.13", features = ["derive"] }
+num = "0.4.3"
+lazy_static = "1.5.0"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", default-features = false }

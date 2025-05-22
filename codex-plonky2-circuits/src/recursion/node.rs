@@ -260,7 +260,7 @@ mod tests {
     use plonky2::plonk::config::GenericConfig;
     use plonky2_field::types::{Field, PrimeField64};
     use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
+    use plonky2_poseidon2::poseidon2_hash::poseidon2:: Poseidon2Hash;
     use crate::recursion::leaf::BUCKET_SIZE;
 
 
@@ -276,7 +276,7 @@ mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let mut pub_input = vec![];
-        for i in 0..9+B {
+        for _i in 0..9+B {
             pub_input.push(builder.add_virtual_public_input());
         }
         let data = builder.build::<C>();
