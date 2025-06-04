@@ -12,6 +12,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/logger"
 )
@@ -114,7 +115,7 @@ func LoadGroth16Proof(dataPath string) (groth16.Proof, error) {
 }
 
 type solidityExporter interface {
-	ExportSolidity(w io.Writer) error
+	ExportSolidity(io.Writer, ...solidity.ExportOption) error
 }
 
 func ExportIFunctionVerifierSolidity(path string, vk solidityExporter) error {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"io"
 	"os"
 	"time"
@@ -14,7 +15,8 @@ import (
 	"github.com/codex-storage/gnark-plonky2-verifier/variables"
 	"github.com/codex-storage/gnark-plonky2-verifier/verifier"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/kzg"
+	bn_kzg "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	gnark_kzg "github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -41,7 +43,7 @@ func (c *Plonky2VerifierCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func CompileVerifierCircuitPlonk(CircuitPath string) (constraint.ConstraintSystem, plonk.ProvingKey, plonk.VerifyingKey, error) {
+func CompileVerifierCircuitPlonk(CircuitPath string, IsDummy bool) (constraint.ConstraintSystem, plonk.ProvingKey, plonk.VerifyingKey, error) {
 	log := logger.Logger()
 	verifierOnlyCircuitData := variables.DeserializeVerifierOnlyCircuitData(
 		types.ReadVerifierOnlyCircuitData(CircuitPath + "/verifier_only_circuit_data.json"),
@@ -63,27 +65,58 @@ func CompileVerifierCircuitPlonk(CircuitPath string) (constraint.ConstraintSyste
 	}
 	log.Info().Msg("Successfully compiled verifier circuit")
 
-	log.Info().Msg("Loading SRS - this will take some time")
-	fileName := CircuitPath + "srs_setup"
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		trusted_setup.DownloadAndSaveAztecIgnitionSrs(174, fileName)
-	}
-	fSRS, err := os.Open(fileName)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to open srs file: %w", err)
-	}
+	log.Info().Msg("Running circuit setup - this will take some time")
 
-	var srs kzg.SRS = kzg.NewSRS(ecc.BN254)
-	_, err = srs.ReadFrom(fSRS)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to read srs file: %w", err)
+	spr, ok := r1cs.(constraint.SparseR1CS)
+	if !ok {
+		panic("plonkProof: expected a constraint.SparseR1CS, got something else")
 	}
-	fSRS.Close()
+	var (
+		canonicalSrs gnark_kzg.SRS
+		lagrangeSrs  gnark_kzg.SRS
+	)
+	if IsDummy {
+		fmt.Println("Using dummy setup")
+
+		canonicalSrs, lagrangeSrs, err = unsafekzg.NewSRS(spr)
+		if err != nil {
+			panic(fmt.Errorf("unsafekzg.NewSRS: %w", err))
+		}
+	} else {
+		fmt.Println("Using real setup")
+
+		fileName := CircuitPath + "srs_setup"
+		if _, err := os.Stat(fileName); os.IsNotExist(err) {
+			trusted_setup.DownloadAndSaveAztecIgnitionSrs(174, fileName)
+		}
+		fSRS, err := os.Open(fileName)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to open srs file: %w", err)
+		}
+
+		BnCanonicalSrs := bn_kzg.SRS{}
+		_, err = canonicalSrs.ReadFrom(fSRS)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to read srs file: %w", err)
+		}
+		fSRS.Close()
+
+		canonicalSrs = &BnCanonicalSrs
+		BnLagrangeSrs := bn_kzg.SRS{}
+
+		n := spr.GetNbCoefficients()
+		lagG1, err := bn_kzg.ToLagrangeG1(BnCanonicalSrs.Pk.G1[:n])
+		if err != nil {
+			panic(fmt.Errorf("bn_kzg.ToLagrangeG1: %w", err))
+		}
+		BnLagrangeSrs.Pk.G1 = lagG1
+		lagrangeSrs = &BnLagrangeSrs
+	}
 	log.Info().Msg("Successfully loaded SRS")
 
 	log.Info().Msg("Running circuit setup")
 	start := time.Now()
-	pk, vk, err := plonk.Setup(r1cs, srs)
+	pk, vk, err := plonk.Setup(r1cs, canonicalSrs, lagrangeSrs)
 	if err != nil {
 		return nil, nil, nil, err
 	}

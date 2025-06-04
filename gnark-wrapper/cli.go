@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/logger"
 	"github.com/rs/zerolog/log"
 	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -24,7 +25,8 @@ func main() {
 
 	log := logger.Logger()
 
-	log.Info().Msgf("Running gnark plonky2 verifier for %s circuit with proof system %s", *circuitPath, *proofSystem)
+	circuitName := filepath.Base(*circuitPath)
+	log.Info().Msgf("Running gnark plonky2 verifier for %s circuit with proof system %s", circuitName, *proofSystem)
 
 	if *circuitPath == "" {
 		log.Info().Msg("no circuitPath flag found, please specify one")
@@ -70,7 +72,7 @@ func main() {
 func CompileVerifierCircuit(circuitPath string, dataPath string, contractFlag bool, proofSystem string, dummySetup bool) {
 	log.Info().Msg("compiling verifier circuit")
 	if proofSystem == "plonk" {
-		r1cs, pk, vk, err := CompileVerifierCircuitPlonk(circuitPath)
+		r1cs, pk, vk, err := CompileVerifierCircuitPlonk(circuitPath, dummySetup)
 		if err != nil {
 			log.Error().Msg("failed to compile verifier circuit:" + err.Error())
 			os.Exit(1)
@@ -149,7 +151,6 @@ func ProveCircuit(circuitPath string, dataPath string, proofSystem string, isDum
 			log.Err(err).Msg("failed sanity check to verify proof")
 			os.Exit(1)
 		}
-		log.Info().Msgf("number of public input: %s", publicWitness)
 		log.Info().Msg("Successfully passed sanity check - proof verification")
 	} else if proofSystem == "groth16" {
 		log.Info().Msg("loading the Groth16 proving key, circuit data and verifying key")

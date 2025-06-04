@@ -6,7 +6,7 @@ set -euo pipefail
 CIRCUIT_DIR=${1:-"$PWD/testdata/dummy"} # path to your Plonky2 JSON folder
 DATA_DIR=${2:-"$PWD/gnark_output"} # where to save gnark outputs
 PROOF_SYSTEM=${3:-"groth16"} # "plonk" or "groth16"
-DUMMY=${4:-"false"} # only used for groth16 dummy setup
+DUMMY=${4:-"false"} # dummy or real setup
 
 echo "Running full test: compile → prove → verify"
 ./compile.sh "${CIRCUIT_DIR}" "${DATA_DIR}" "${PROOF_SYSTEM}" "${DUMMY}"
