@@ -8,6 +8,7 @@ use crate::params::{C, D, F, HF, Params};
 pub mod tree_test;
 pub mod leaf_test;
 pub mod node_test;
+pub mod wrap_test;
 
 
 pub fn run_sampling_circ() -> anyhow::Result<(ProofWithPublicInputs<F, C, D>, ProverCircuitData<F, C, D>, VerifierCircuitData<F, C, D>)> {
