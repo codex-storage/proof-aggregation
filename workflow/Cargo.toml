@@ -26,30 +26,6 @@ tynm = { version = "0.1.6", default-features = false }
 default = []
 parallel = ["plonky2/parallel"]
 
-[[bin]]
-name = "prove_and_verify"
-path = "src/bin/verify.rs"
-
-[[bin]]
-name = "gen_input"
-path = "src/bin/gen_input.rs"
-
-[[bin]]
-name = "build_circ"
-path = "src/bin/build_circ.rs"
-
-[[bin]]
-name = "prove"
-path = "src/bin/prove.rs"
-
-[[bin]]
-name = "verify"
-path = "src/bin/verify.rs"
-
-[[bin]]
-name = "aggregate"
-path = "src/bin/aggregate.rs"
-
 [[bench]]
 name = "merkle_circuit"
 harness = false
