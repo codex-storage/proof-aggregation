@@ -109,6 +109,10 @@ impl<
         self.node_circ_data.verifier_data()
     }
 
+    pub fn get_compression_verifier_data(&self) -> VerifierCircuitData<F, C, D>{
+        self.compression_circ_data.verifier_data()
+    }
+
     pub fn prove_bundle(_bundle: Bundle<F, C, D, H>){
         todo!()
     }
