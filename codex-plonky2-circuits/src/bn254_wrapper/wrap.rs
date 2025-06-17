@@ -130,16 +130,16 @@ impl<
         if !path.as_ref().exists() {
             fs::create_dir_all(&path)?;
         }
-        let common_data_file = File::create(path.as_ref().join("common_circuit_data.json"))?;
+        let common_data_file = File::create(path.as_ref().join("verifier_data/common_circuit_data.json"))?;
         serde_json::to_writer(&common_data_file, &self.common_data)?;
         println!("Succesfully wrote common circuit data to common_circuit_data.json");
 
         let verifier_data_file =
-            File::create(path.as_ref().join("verifier_only_circuit_data.json"))?;
+            File::create(path.as_ref().join("verifier_data/verifier_only_circuit_data.json"))?;
         serde_json::to_writer(&verifier_data_file, &self.verifier_data)?;
         println!("Succesfully wrote verifier data to verifier_only_circuit_data.json");
 
-        let proof_file = File::create(path.as_ref().join("proof_with_public_inputs.json"))?;
+        let proof_file = File::create(path.as_ref().join("verifier_data/proof_with_public_inputs.json"))?;
         serde_json::to_writer(&proof_file, &self.proof)?;
         println!("Succesfully wrote proof to proof_with_public_inputs.json");
 
@@ -172,10 +172,6 @@ mod tests {
         let conf = CircuitConfig::standard_recursion_config();
         let mut builder =  CircuitBuilder::<F, D>::new(conf);
 
-        // let a = builder.add_virtual_public_input();
-        // let b = builder.add_virtual_public_input();
-        // let c = builder.add(a,b);
-        // builder.register_public_input(c);
         for _ in 0..(4096+10) {
             builder.add_gate(NoopGate, vec![]);
         }
@@ -185,8 +181,6 @@ mod tests {
         // Set up the dummy circuit and wrapper.
         let dummy_circuit = builder.build::<InnerParameters>();
         let mut pw = PartialWitness::new();
-        // pw.set_target(a, GoldilocksField::from_canonical_u64(1))?;
-        // pw.set_target(b, GoldilocksField::from_canonical_u64(2))?;
         pw.set_target(t, F::ZERO).expect("faulty assign");
         println!(
             "dummy circuit degree: {}",
