@@ -8,6 +8,7 @@ Cargo.lock
 # Profile-guided optimization
 /tmp
 pgo-data.profdata
+/output
 
 # MacOS nuisances
 .DS_Store

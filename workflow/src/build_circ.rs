@@ -2,12 +2,12 @@ use std::time::Instant;
 use anyhow::Result;
 use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
-use proof_input::serialization::json::export_circuit_data;
+use codex_plonky2_circuits::serialization::export_circuit_data;
 use proof_input::params::Params;
 use proof_input::params::{D, C, F,HF};
-use proof_input::serialization::file_paths::{PROVER_CIRC_DATA_JSON, TARGETS_JSON, VERIFIER_CIRC_DATA_JSON};
+use crate::file_paths::SAMPLING_CIRC_BASE_PATH;
 
-fn main() -> Result<()> {
+pub fn run() -> Result<()> {
     // Load the parameters from environment variables
     let params = Params::from_env()?;
 
@@ -20,10 +20,8 @@ fn main() -> Result<()> {
     println!("Circuit size (degree bits): {:?}", data.common.degree_bits());
 
     // export the circuit data
-    export_circuit_data::<F,C,D>(data, &targets)?;
-    println!("Prover Data written to {}", PROVER_CIRC_DATA_JSON);
-    println!("Verifier Data written to {}", VERIFIER_CIRC_DATA_JSON);
-    println!("Targets written to {}", TARGETS_JSON);
+    export_circuit_data::<F,C,D, _>(data, &targets, SAMPLING_CIRC_BASE_PATH)?;
+    println!("all data written to {}", SAMPLING_CIRC_BASE_PATH);
 
     Ok(())
 }

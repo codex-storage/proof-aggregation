@@ -4,9 +4,9 @@ use proof_input::serialization::circuit_input::export_circ_input_to_json;
 use proof_input::gen_input::gen_testing_circuit_input;
 use proof_input::params::Params;
 use proof_input::params::{D, F};
-use proof_input::serialization::file_paths::CIRC_INPUT_JSON;
+use crate::file_paths::SAMPLING_CIRC_BASE_PATH;
 
-fn main() -> Result<()> {
+pub fn run() -> Result<()> {
     // Load the parameters from environment variables
     let params = Params::from_env()?;
 
@@ -16,8 +16,8 @@ fn main() -> Result<()> {
     println!("Generating input time: {:?}", start_time.elapsed());
 
     // export circuit parameters to json file
-    export_circ_input_to_json(circ_input)?;
-    println!("proof input written to {}", CIRC_INPUT_JSON);
+    export_circ_input_to_json(circ_input, SAMPLING_CIRC_BASE_PATH)?;
+    println!("proof input written to {}", SAMPLING_CIRC_BASE_PATH);
 
     Ok(())
 }
