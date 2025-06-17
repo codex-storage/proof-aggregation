@@ -183,7 +183,6 @@ func ProveCircuit(circuitPath string, dataPath string, proofSystem string, isDum
 				log.Err(err).Msg("failed sanity check to verify proof")
 				os.Exit(1)
 			}
-			log.Info().Msgf("number of public input: %s", publicWitness)
 			log.Info().Msg("Successfully passed sanity check - proof verification")
 		}
 	} else {

@@ -54,26 +54,39 @@ This folder `testdata/dummy` must contain:
 - `proof_with_public_inputs.json`
 - `common_circuit_data.json`
 
-2. Compile:
+2. **Create or edit your `params.sh`**
+Define your defaults (circuit folder, output dir, proof system, dummy mode) in `params.sh`
 ```bash
-./compile.sh ./testdata/dummy ./gnark_output groth16 false
+export CIRCUIT_DIR="$PWD/testdata/dummy"     # path to Plonky2 JSON files
+export DATA_DIR="$PWD/gnark_output"          # where to save gnark outputs
+export PROOF_SYSTEM="groth16"                # "plonk" or "groth16"
+export DUMMY="false"                         # dummy or real setup
 ```
-Produces ./gnark_output/groth16/r1cs.bin, pk.bin, vk.bin, and Verifier.sol.
 
-3. Prove:
+3. **Run the full end-to-end using defaults in `params.sh`**
 ```bash
-./prove.sh ./testdata/dummy ./gnark_output groth16 false
+./run_gnark_cli.sh
 ```
-Produces ./gnark_output/groth16/proof.json and public_witness.bin.
+If you don’t supply any of `--compile`, `--prove` or `--verify` flags, it will run all three compile → prove → verify in sequence.
 
-4. Verify:
-```bash
-./verify.sh ./testdata/dummy ./gnark_output groth16 false
-```
-Checks proof.json + vk.bin + public_witness.bin.
+4. **Run individual steps**
+Append any combination of:
+- `--compile`
+- `--prove`
+- `--verify`
 
-5. (Optional) Full end-to-end
 ```bash
-./test.sh ./testdata/dummy ./gnark_output groth16 false
+# Compile only
+./run_gnark_cli.sh --compile
+
+# Prove and then verify
+./run_gnark_cli.sh --prove --verify
 ```
-Calls compile → prove → verify in sequence.
+
+5. **Use a custom params.sh location**
+Pass -P or --params-file before any other flags:
+```bash
+./run_gnark_cli.sh \
+  -P /path/to/your/params.sh \
+  --compile --prove
+```
