@@ -1,6 +1,5 @@
 [workspace]
 members = ["codex-plonky2-circuits","plonky2_poseidon2","proof-input","workflow"]
-exclude = ["goldibear_experiments"]
 resolver = "2"
 
 [workspace.dependencies]
