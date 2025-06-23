@@ -4,6 +4,7 @@
 # Cargo build
 /target
 Cargo.lock
+/output
 
 # Profile-guided optimization
 /tmp
