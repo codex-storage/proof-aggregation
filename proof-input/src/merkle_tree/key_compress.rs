@@ -28,7 +28,6 @@ pub fn key_compress<
 
 #[cfg(test)]
 mod tests {
-    // use plonky2::hash::poseidon::PoseidonHash;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
     use plonky2_field::types::Field;
     use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;

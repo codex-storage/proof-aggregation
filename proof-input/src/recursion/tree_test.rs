@@ -3,7 +3,6 @@
 #[cfg(test)]
 mod tests {
     use plonky2::plonk::proof::{ProofWithPublicInputs};
-    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
     use crate::params::{F, D, C, HF};
     use codex_plonky2_circuits::recursion::{tree::TreeRecursion};
     use crate::recursion::run_sampling_circ;
@@ -12,7 +11,7 @@ mod tests {
 
         //------------ sampling inner circuit ----------------------
         // Circuit that does the sampling - 100 samples
-        let (inner_proof, inner_prover_data, inner_verifier_data) = run_sampling_circ()?;
+        let (inner_proof, _inner_prover_data, inner_verifier_data) = run_sampling_circ()?;
 
         let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| inner_proof.clone()).collect();
 

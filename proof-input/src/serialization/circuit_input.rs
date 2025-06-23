@@ -7,8 +7,6 @@ use codex_plonky2_circuits::circuits::sample_cells::{Cell, MerklePath, SampleCir
 use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::Path;
-use crate::gen_input::gen_testing_circuit_input;
-use crate::params::InputParams;
 use codex_plonky2_circuits::serialization::ensure_parent_directory_exists;
 
 pub const CIRC_INPUT_JSON: &str = "prover_data/input.json";
@@ -261,24 +259,6 @@ pub fn export_circ_input_to_json<
     Ok(())
 }
 
-
-/// Function to generate circuit input and export to JSON
-pub fn generate_and_export_circ_input_to_json<
-    F: RichField + Extendable<D> + Poseidon2 + Serialize,
-    const D: usize,
-    P: AsRef<Path>,
->(
-    params: &InputParams,
-    base_path: P,
-) -> anyhow::Result<()> {
-
-    let circ_input = gen_testing_circuit_input::<F,D>(params);
-
-    export_circ_input_to_json(circ_input, base_path)?;
-
-    Ok(())
-}
-
 /// reads the json file, converts it to circuit input (SampleCircuitInput) and returns it
 pub fn import_circ_input_from_json<
     F: RichField + Extendable<D> + Poseidon2,
@@ -303,16 +283,16 @@ mod tests {
     use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
     use plonky2::plonk::circuit_data::{ProverCircuitData, VerifierCircuitData};
     use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
-    use crate::gen_input::{gen_testing_circuit_input, verify_circuit_input};
-    use crate::serialization::circuit_input::{export_circ_input_to_json, generate_and_export_circ_input_to_json, import_circ_input_from_json};
+    use crate::gen_input::InputGenerator;
+    use crate::serialization::circuit_input::{export_circ_input_to_json, import_circ_input_from_json};
 
     // Test to generate the JSON file
     #[test]
     fn test_export_circ_input_to_json() -> anyhow::Result<()> {
-        // Create Params
-        let params = Params::default().input_params;
+        // Create InputGenerator
+        let input_gen = InputGenerator::<F,D,HF>::default();
         // Export the circuit input to JSON
-        generate_and_export_circ_input_to_json::<F, D,_>(&params, "../output/test/")?;
+        input_gen.generate_and_export_circ_input_to_json( "../output/test/")?;
 
         println!("Circuit input exported to input.json");
 
@@ -332,11 +312,11 @@ mod tests {
     // export the circuit input and then import it and checks equality
     #[test]
     fn test_export_import_circ_input() -> anyhow::Result<()> {
-        // Create Params instance
-        let params = Params::default().input_params;
+        // Create InputGenerator
+        let input_gen = InputGenerator::<F,D,HF>::default();
 
         // Export the circuit input to JSON
-        let original_circ_input = gen_testing_circuit_input(&params);
+        let original_circ_input = input_gen.gen_testing_circuit_input();
         export_circ_input_to_json(original_circ_input.clone(), "../output/test/")?;
         println!("circuit input exported to input.json");
 
@@ -387,14 +367,15 @@ mod tests {
     // NOTE: expects that the json input proof uses the default params
     #[test]
     fn test_read_json_and_verify() -> anyhow::Result<()> {
-        let params = Params::default().input_params;
+        // Create InputGenerator
+        let input_gen = InputGenerator::<F,D,HF>::default();
 
         // Import the circuit input from JSON
         let imported_circ_input: SampleCircuitInput<F, D> = import_circ_input_from_json("../output/test/")?;
         println!("circuit input imported from input.json");
 
         // Verify the proof
-        let ver = verify_circuit_input(imported_circ_input, &params);
+        let ver = input_gen.verify_circuit_input(imported_circ_input);
         assert!(
             ver,
             "Merkle proof verification failed"

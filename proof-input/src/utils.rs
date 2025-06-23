@@ -100,3 +100,7 @@ pub fn ceiling_log2(
 
     (last_bits, mask)
 }
+
+pub fn zero<F: RichField + Extendable<D> + Poseidon2, const D: usize>() -> HashOut<F>{
+    HashOut { elements: [F::ZERO; 4],}
+}

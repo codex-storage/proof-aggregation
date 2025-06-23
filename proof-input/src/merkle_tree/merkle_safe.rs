@@ -1,14 +1,16 @@
-// Implementation of "safe" merkle tree
+// Implementation of Codex specific "safe" merkle tree
 // consistent with the one in codex:
 // https://github.com/codex-storage/nim-codex/blob/master/codex/merkletree/merkletree.nim
 
+use std::marker::PhantomData;
 use anyhow::{ensure, Result};
 use plonky2::hash::hash_types::{HashOut, RichField};
 use std::ops::Shr;
+use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::key_compress::key_compress;
-use crate::params::HF;
+use crate::utils::zero;
 
 // Constants for the keys used in compression
 pub const KEY_NONE: u64 = 0x0;
@@ -21,24 +23,25 @@ pub const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
 pub struct MerkleTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
     pub layers: Vec<Vec<HashOut<F>>>,
-    pub zero: HashOut<F>,
+    phantom_data: PhantomData<H>
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> MerkleTree<F, D> {
+    H: AlgebraicHasher<F>,
+> MerkleTree<F, D, H> {
     /// Constructs a new Merkle tree from the given leaves.
     pub fn new(
         leaves: &[HashOut<F>],
-        zero: HashOut<F>,
     ) -> Result<Self> {
-        let layers = merkle_tree_worker::<F, D>(leaves, zero, true)?;
+        let layers = merkle_tree_worker::<F, D, H>(leaves, true)?;
         Ok(Self {
             layers,
-            zero,
+            phantom_data: PhantomData::default(),
         })
     }
 
@@ -60,7 +63,7 @@ impl<
     }
 
     /// Generates a Merkle proof for a given leaf index.
-    pub fn get_proof(&self, index: usize) -> Result<MerkleProof<F, D>> {
+    pub fn get_proof(&self, index: usize) -> Result<MerkleProof<F, D, H>> {
         let depth = self.depth();
         let nleaves = self.leaves_count();
 
@@ -75,19 +78,18 @@ impl<
             let sibling = if j < m {
                 self.layers[i][j]
             } else {
-                self.zero
+                zero::<F,D>()
             };
             path.push(sibling);
             k = k >> 1;
             m = (m + 1) >> 1;
         }
 
-        Ok(MerkleProof {
+        Ok(MerkleProof::new(
             index,
             path,
             nleaves,
-            zero: self.zero,
-        })
+        ))
     }
 }
 
@@ -95,9 +97,9 @@ impl<
 fn merkle_tree_worker<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 >(
     xs: &[HashOut<F>],
-    zero: HashOut<F>,
     is_bottom_layer: bool,
 ) -> Result<Vec<Vec<HashOut<F>>>> {
     let m = xs.len();
@@ -113,7 +115,7 @@ fn merkle_tree_worker<
 
     for i in 0..halfn {
         let key = if is_bottom_layer { KEY_BOTTOM_LAYER } else { KEY_NONE };
-        let h = key_compress::<F, D, HF>(xs[2 * i], xs[2 * i + 1], key);
+        let h = key_compress::<F, D, H>(xs[2 * i], xs[2 * i + 1], key);
         ys.push(h);
     }
 
@@ -123,12 +125,12 @@ fn merkle_tree_worker<
         } else {
             KEY_ODD
         };
-        let h = key_compress::<F, D, HF>(xs[n], zero, key);
+        let h = key_compress::<F, D, H>(xs[n], zero::<F,D>(), key);
         ys.push(h);
     }
 
     let mut layers = vec![xs.to_vec()];
-    let mut upper_layers = merkle_tree_worker::<F, D>(&ys, zero, false)?;
+    let mut upper_layers = merkle_tree_worker::<F, D, H>(&ys, false)?;
     layers.append(&mut upper_layers);
 
     Ok(layers)
@@ -139,17 +141,31 @@ fn merkle_tree_worker<
 pub struct MerkleProof<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
     pub index: usize,       // Index of the leaf
     pub path: Vec<HashOut<F>>, // Sibling hashes from the leaf to the root
     pub nleaves: usize,     // Total number of leaves
-    pub zero: HashOut<F>,
+    phantom_data: PhantomData<H>
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> MerkleProof<F, D> {
+    H: AlgebraicHasher<F>,
+> MerkleProof<F, D, H> {
+    pub fn new(
+        index: usize,
+        path: Vec<HashOut<F>>,
+        nleaves: usize,
+    ) -> Self{
+        Self{
+            index,
+            path,
+            nleaves,
+            phantom_data: PhantomData::default(),
+        }
+    }
     /// Reconstructs the root hash from the proof and the given leaf.
     pub fn reconstruct_root(&self, leaf: HashOut<F>) -> Result<HashOut<F>> {
         let mut m = self.nleaves;
@@ -161,14 +177,14 @@ impl<
             let odd_index = (j & 1) != 0;
             if odd_index {
                 // The index of the child is odd
-                h = key_compress::<F, D, HF>(*p, h, bottom_flag);
+                h = key_compress::<F, D, H>(*p, h, bottom_flag);
             } else {
                 if j == m - 1 {
                     // Single child -> so odd node
-                    h = key_compress::<F, D, HF>(h, *p, bottom_flag + 2);
+                    h = key_compress::<F, D, H>(h, *p, bottom_flag + 2);
                 } else {
                     // Even node
-                    h = key_compress::<F, D, HF>(h, *p, bottom_flag);
+                    h = key_compress::<F, D, H>(h, *p, bottom_flag);
                 }
             }
             bottom_flag = KEY_NONE;
@@ -200,9 +216,9 @@ impl<
             let key = bottom + (2 * (odd as u64));
             let odd_index = path_bits[i];
             if odd_index {
-                h.push(key_compress::<F, D, HF>(*p, h[i], key));
+                h.push(key_compress::<F, D, H>(*p, h[i], key));
             } else {
-                h.push(key_compress::<F,D,HF>(h[i], *p, key));
+                h.push(key_compress::<F,D,H>(h[i], *p, key));
             }
             i += 1;
         }
@@ -262,13 +278,12 @@ mod tests {
         y: HashOut<F>,
         key: u64,
     ) -> HashOut<F> {
-        key_compress::<F,D,HF>(x,y,key)
+        key_compress::<F,D,H>(x,y,key)
     }
 
     fn make_tree(
         data: &[F],
-        zero: HashOut<F>,
-    ) -> Result<MerkleTree<F,D>> {
+    ) -> Result<MerkleTree<F,D, H>> {
         // Hash the data to obtain leaf hashes
         let leaves: Vec<HashOut<GoldilocksField>> = data
             .iter()
@@ -278,7 +293,7 @@ mod tests {
             })
             .collect();
 
-        MerkleTree::<F, D>::new(&leaves, zero)
+        MerkleTree::<F, D, H>::new(&leaves)
     }
 
     #[test]
@@ -296,12 +311,8 @@ mod tests {
             })
             .collect();
 
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
-
         // Build the Merkle tree
-        let tree = MerkleTree::<F, D>::new(&leaves, zero)?;
+        let tree = MerkleTree::<F, D, H>::new(&leaves)?;
 
         // Get the root
         let root = tree.root()?;
@@ -328,11 +339,6 @@ mod tests {
             .iter()
             .map(|&element| H::hash_no_pad(&[element]))
             .collect();
-
-        // zero hash
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
 
         let expected_root =
             compress(
@@ -366,7 +372,7 @@ mod tests {
             );
 
         // Build the tree
-        let tree = make_tree(&data, zero)?;
+        let tree = make_tree(&data)?;
 
         // Get the computed root
         let computed_root = tree.root()?;
@@ -389,11 +395,6 @@ mod tests {
             .iter()
             .map(|&element| H::hash_no_pad(&[element]))
             .collect();
-
-        // zero hash
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
 
         let expected_root =
             compress(
@@ -418,7 +419,7 @@ mod tests {
                     ),
                     compress(
                         leaf_hashes[6],
-                        zero,
+                        zero::<F,D>(),
                         KEY_ODD_AND_BOTTOM_LAYER,
                     ),
                     KEY_NONE,
@@ -427,7 +428,7 @@ mod tests {
             );
 
         // Build the tree
-        let tree = make_tree(&data, zero)?;
+        let tree = make_tree(&data)?;
 
         // Get the computed root
         let computed_root = tree.root()?;
@@ -450,11 +451,6 @@ mod tests {
             .iter()
             .map(|&element| H::hash_no_pad(&[element]))
             .collect();
-
-        // zero hash
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
 
         let expected_root = compress(
             compress(
@@ -493,17 +489,17 @@ mod tests {
                         leaf_hashes[9],
                         KEY_BOTTOM_LAYER,
                     ),
-                    zero,
+                    zero::<F,D>(),
                     KEY_ODD,
                 ),
-                zero,
+                zero::<F,D>(),
                 KEY_ODD,
             ),
             KEY_NONE,
         );
 
         // Build the tree
-        let tree = make_tree(&data, zero)?;
+        let tree = make_tree(&data)?;
 
         // Get the computed root
         let computed_root = tree.root()?;
@@ -527,13 +523,8 @@ mod tests {
             .map(|&element| H::hash_no_pad(&[element]))
             .collect();
 
-        // zero hash
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
-
         // Build the tree
-        let tree = MerkleTree::<F, D>::new(&leaf_hashes, zero)?;
+        let tree = MerkleTree::<F, D, H>::new(&leaf_hashes)?;
 
         // Get the root
         let expected_root = tree.root()?;

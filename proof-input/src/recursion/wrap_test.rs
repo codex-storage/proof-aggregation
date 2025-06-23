@@ -69,7 +69,7 @@ mod tests {
 
         //------------ sampling inner circuit ----------------------
         // Circuit that does the sampling - 100 samples
-        let (inner_proof, inner_prover_data, inner_verifier_data) = run_sampling_circ()?;
+        let (inner_proof, _inner_prover_data, inner_verifier_data) = run_sampling_circ()?;
 
         let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| inner_proof.clone()).collect();
 

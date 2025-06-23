@@ -1,6 +1,7 @@
 // Data structure used to generate the proof input
 
 use plonky2::hash::hash_types::{HashOut, RichField};
+use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_field::extension::Extendable;
 use codex_plonky2_circuits::circuits::sample_cells::Cell;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
@@ -14,9 +15,10 @@ use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_
 pub struct SlotTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
-    pub tree: MerkleTree<F, D>,         // slot tree
-    pub block_trees: Vec<MerkleTree<F,D>>, // vec of block trees
+    pub tree: MerkleTree<F, D, H>,         // slot tree
+    pub block_trees: Vec<MerkleTree<F,D, H>>, // vec of block trees
     pub cell_data: Vec<Cell<F, D>>,  // cell data as field elements
     pub params: InputParams,              // parameters
 }
@@ -24,7 +26,8 @@ pub struct SlotTree<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> SlotTree<F, D> {
+    H: AlgebraicHasher<F>,
+> SlotTree<F, D, H> {
     /// Create a slot tree with fake data, for testing only
     pub fn new_default(params: &InputParams) -> Self {
         // generate fake cell data
@@ -40,9 +43,7 @@ impl<
             .iter()
             .map(|element| hash_bytes_no_padding::<F,D,HF>(&element.data))
             .collect();
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
+
         let n_blocks = params.n_blocks_test();
         let n_cells_in_blocks = params.n_cells_in_blocks();
 
@@ -57,7 +58,7 @@ impl<
             .iter()
             .map(|t| t.root().unwrap())
             .collect::<Vec<_>>();
-        let slot_tree = MerkleTree::<F,D>::new(&block_roots, zero).unwrap();
+        let slot_tree = MerkleTree::<F,D, H>::new(&block_roots).unwrap();
         Self {
             tree: slot_tree,
             block_trees,
@@ -68,7 +69,7 @@ impl<
 
     /// Generates a proof for the given leaf index
     /// The path in the proof is a combined block and slot path to make up the full path
-    pub fn get_proof(&self, index: usize) -> MerkleProof<F,D> {
+    pub fn get_proof(&self, index: usize) -> MerkleProof<F,D, H> {
         let block_index = index / self.params.n_cells_in_blocks();
         let leaf_index = index % self.params.n_cells_in_blocks();
         let block_proof = self.block_trees[block_index].get_proof(leaf_index).unwrap();
@@ -78,20 +79,16 @@ impl<
         let mut combined_path = block_proof.path.clone();
         combined_path.extend(slot_proof.path.clone());
 
-        MerkleProof::<F,D> {
+        MerkleProof::<F,D, H>::new(
             index,
-            path: combined_path,
-            nleaves: self.cell_data.len(),
-            zero: block_proof.zero.clone(),
-        }
+            combined_path,
+            self.cell_data.len(),
+        )
     }
 
-    fn get_block_tree(leaves: &Vec<HashOut<F>>) -> MerkleTree<F,D> {
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
+    fn get_block_tree(leaves: &Vec<HashOut<F>>) -> MerkleTree<F,D,H> {
         // Build the Merkle tree
-        let block_tree = MerkleTree::<F,D>::new(leaves, zero).unwrap();
+        let block_tree = MerkleTree::<F,D,H>::new(leaves).unwrap();
         block_tree
     }
 }
@@ -102,9 +99,10 @@ impl<
 pub struct DatasetTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
-    pub tree: MerkleTree<F,D>,          // dataset tree
-    pub slot_trees: Vec<SlotTree<F, D>>, // vec of slot trees
+    pub tree: MerkleTree<F,D,H>,          // dataset tree
+    pub slot_trees: Vec<SlotTree<F, D, H>>, // vec of slot trees
     pub params: InputParams,               // parameters
 }
 
@@ -113,24 +111,26 @@ pub struct DatasetTree<
 pub struct DatasetProof<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
+    H: AlgebraicHasher<F>,
 > {
     pub slot_index: F,
     pub entropy: HashOut<F>,
-    pub dataset_proof: MerkleProof<F,D>,    // proof for dataset level tree
-    pub slot_proofs: Vec<MerkleProof<F,D>>, // proofs for sampled slot
+    pub dataset_proof: MerkleProof<F,D,H>,    // proof for dataset level tree
+    pub slot_proofs: Vec<MerkleProof<F,D,H>>, // proofs for sampled slot
     pub cell_data: Vec<Cell<F,D>>,
 }
 
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-> DatasetTree<F, D> {
+    H: AlgebraicHasher<F>,
+> DatasetTree<F, D, H> {
     /// Dataset tree with fake data, for testing only
     pub fn new_default(params: &InputParams) -> Self {
         let mut slot_trees = vec![];
         let n_slots = 1 << params.dataset_depth_test();
         for _ in 0..n_slots {
-            slot_trees.push(SlotTree::<F, D>::new_default(params));
+            slot_trees.push(SlotTree::<F, D, H>::new_default(params));
         }
         Self::new(slot_trees, params.clone())
     }
@@ -144,15 +144,15 @@ impl<
         let zero = HashOut {
             elements: [F::ZERO; 4],
         };
-        let zero_slot = SlotTree::<F, D> {
-            tree: MerkleTree::<F,D>::new(&[zero.clone()], zero.clone()).unwrap(),
+        let zero_slot = SlotTree::<F, D, H> {
+            tree: MerkleTree::<F,D,H>::new(&[zero.clone()]).unwrap(),
             block_trees: vec![],
             cell_data: vec![],
             params: params.clone(),
         };
         for i in 0..n_slots {
             if i == params.testing_slot_index {
-                slot_trees.push(SlotTree::<F, D>::new_default(params));
+                slot_trees.push(SlotTree::<F, D, H>::new_default(params));
             } else {
                 slot_trees.push(zero_slot.clone());
             }
@@ -162,7 +162,7 @@ impl<
             .iter()
             .map(|t| t.tree.root().unwrap())
             .collect::<Vec<_>>();
-        let dataset_tree = MerkleTree::<F,D>::new(&slot_roots, zero).unwrap();
+        let dataset_tree = MerkleTree::<F,D,H>::new(&slot_roots).unwrap();
         Self {
             tree: dataset_tree,
             slot_trees,
@@ -171,17 +171,14 @@ impl<
     }
 
     /// Same as default but with supplied slot trees
-    pub fn new(slot_trees: Vec<SlotTree<F, D>>, params: InputParams) -> Self {
+    pub fn new(slot_trees: Vec<SlotTree<F, D, H>>, params: InputParams) -> Self {
         // get the roots of slot trees
         let slot_roots = slot_trees
             .iter()
             .map(|t| t.tree.root().unwrap())
             .collect::<Vec<_>>();
-        // zero hash
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
-        let dataset_tree = MerkleTree::<F,D>::new(&slot_roots, zero).unwrap();
+
+        let dataset_tree = MerkleTree::<F,D,H>::new(&slot_roots).unwrap();
         Self {
             tree: dataset_tree,
             slot_trees,
@@ -192,7 +189,7 @@ impl<
     /// Generates a proof for the given slot index
     /// Also takes entropy so it can use it to sample the slot
     /// note: proofs are padded based on the params in self
-    pub fn sample_slot(&self, index: usize, entropy: usize) -> DatasetProof<F,D> {
+    pub fn sample_slot(&self, index: usize, entropy: usize) -> DatasetProof<F,D,H> {
         let mut dataset_proof = self.tree.get_proof(index).unwrap();
         Self::pad_proof(&mut dataset_proof, self.params.dataset_max_depth());
 
@@ -234,7 +231,7 @@ impl<
         }
     }
     /// pad the proof with 0s until max_depth
-    pub fn pad_proof(merkle_proof: &mut MerkleProof<F,D>, max_depth: usize){
+    pub fn pad_proof(merkle_proof: &mut MerkleProof<F,D,H>, max_depth: usize){
         for _i in merkle_proof.path.len()..max_depth{
             merkle_proof.path.push(HashOut::<F>::ZERO);
         }

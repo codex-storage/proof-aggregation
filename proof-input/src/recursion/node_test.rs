@@ -10,7 +10,7 @@ mod tests {
     use crate::recursion::leaf_test::tests::run_leaf_circ;
     use crate::recursion::run_sampling_circ;
 
-    fn run_node_circ<const N: usize, const T: usize>(leaf_proofs: Vec<ProofWithPublicInputs<F, C, D>>, leaf_verifier_data: VerifierCircuitData<F, C, D>, flag: bool, index: usize) -> anyhow::Result<()> {
+    fn run_node_circ<const N: usize, const T: usize>(leaf_proofs: Vec<ProofWithPublicInputs<F, C, D>>, leaf_verifier_data: VerifierCircuitData<F, C, D>, _flag: bool, index: usize) -> anyhow::Result<()> {
 
         // ------------------- Node --------------------
         // N leaf proofs
@@ -53,10 +53,10 @@ mod tests {
     fn test_real_node_circ() -> anyhow::Result<()> {
         let (inner_proof, _, inner_verifier) = run_sampling_circ()?;
         // this is a bit wasteful to build leaf twice, TODO: fix this
-        let (leaf_proof_1, _, leaf_verifier) = run_leaf_circ::<128>(inner_proof.clone(), inner_verifier.clone(), true, 0)?;
-        let (leaf_proof_2, _, leaf_verifier) = run_leaf_circ::<128>(inner_proof, inner_verifier, true, 1)?;
+        let (leaf_proof_1, _, _leaf_verifier_1) = run_leaf_circ::<128>(inner_proof.clone(), inner_verifier.clone(), true, 0)?;
+        let (leaf_proof_2, _, leaf_verifier_2) = run_leaf_circ::<128>(inner_proof, inner_verifier, true, 1)?;
         let leaf_proofs = vec![leaf_proof_1,leaf_proof_2];
-        run_node_circ::<2,128>(leaf_proofs, leaf_verifier, true, 0)
+        run_node_circ::<2,128>(leaf_proofs, leaf_verifier_2, true, 0)
     }
 
 }

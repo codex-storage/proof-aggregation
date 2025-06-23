@@ -1,9 +1,9 @@
 use std::time::Instant;
 use anyhow::Result;
 use proof_input::serialization::circuit_input::export_circ_input_to_json;
-use proof_input::gen_input::gen_testing_circuit_input;
+use proof_input::gen_input::InputGenerator;
 use proof_input::params::Params;
-use proof_input::params::{D, F};
+use proof_input::params::{D, F, HF};
 use crate::file_paths::SAMPLING_CIRC_BASE_PATH;
 
 pub fn run() -> Result<()> {
@@ -12,7 +12,8 @@ pub fn run() -> Result<()> {
 
     // generate circuit input with given parameters
     let start_time = Instant::now();
-    let circ_input = gen_testing_circuit_input::<F,D>(&params.input_params);
+    let input_gen = InputGenerator::<F,D,HF>::new(params.input_params);
+    let circ_input = input_gen.gen_testing_circuit_input();
     println!("Generating input time: {:?}", start_time.elapsed());
 
     // export circuit parameters to json file

@@ -168,8 +168,15 @@ pub fn hash_bytes_to_m_no_padding<
 #[cfg(test)]
 mod tests {
     use plonky2::field::types::Field;
+    use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2Hash;
     use crate::sponge::hash_n_with_padding;
-    use crate::params::{D, F, HF};
+
+    // test types
+    pub const D: usize = 2;
+    pub type C = PoseidonGoldilocksConfig;
+    pub type F = <C as GenericConfig<D>>::F;
+    pub type H = Poseidon2Hash;
 
     #[test]
     fn test_sponge_hash_rate_8() {
@@ -273,7 +280,7 @@ mod tests {
                 .collect();
 
             // Call the sponge function
-            let output = hash_n_with_padding::<F,D,HF>(&inputs);
+            let output = hash_n_with_padding::<F,D,H>(&inputs);
 
             // Compare the outputs
             for (i, &out_elem) in output.elements.iter().enumerate() {

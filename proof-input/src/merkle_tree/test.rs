@@ -3,13 +3,14 @@
 mod tests {
     use plonky2::hash::hash_types::{HashOut, RichField};
     use plonky2_field::extension::Extendable;
-    use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
+    use plonky2_poseidon2::poseidon2_hash::poseidon2::{Poseidon2, Poseidon2Hash};
     use anyhow::Result;
     use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
 
     type F = GoldilocksField;
+    type H = Poseidon2Hash;
     const D: usize = 2;
 
     struct TestCase {
@@ -35,9 +36,6 @@ mod tests {
 
     #[test]
     fn test_merkle_roots() -> Result<()> {
-        let zero = HashOut {
-            elements: [F::ZERO; 4],
-        };
 
         let test_cases: Vec<TestCase> = vec![
             TestCase { n: 1, digest: [0x232f21acc9d346d8, 0x2eba96d3a73822c1, 0x4163308f6d0eff64, 0x5190c2b759734aff] },
@@ -53,7 +51,7 @@ mod tests {
             let inputs = digest_seq::<F,D>(n);
 
             // Build the Merkle tree
-            let tree = MerkleTree::<F, D>::new(&inputs, zero.clone())?;
+            let tree = MerkleTree::<F, D, H>::new(&inputs)?;
 
             // Get the computed root
             let computed_root = tree.root()?;
@@ -160,14 +158,11 @@ mod tests {
         let mut found = false;
 
         for index in 0..num_indices {
-            let proof = MerkleProof::<F,D> {
+            let proof = MerkleProof::<F,D,H>::new(
                 index,
-                path: path_hashes.clone(),
-                nleaves: num_indices,
-                zero: HashOut {
-                    elements: [F::ZERO; 4],
-                },
-            };
+                path_hashes.clone(),
+                num_indices,
+            );
 
             // Reconstruct the root
             let reconstructed_root = proof.reconstruct_root(leaf.clone())?;

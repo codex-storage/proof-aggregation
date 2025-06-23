@@ -129,7 +129,7 @@ mod tests {
     use plonky2::field::types::Field;
 
     #[test]
-    fn test_build_circuit() -> anyhow::Result<()> {
+    fn test_mt_build_circuit() -> anyhow::Result<()> {
         // circuit params
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
@@ -152,10 +152,7 @@ mod tests {
             .collect();
 
         //initialize the Merkle tree
-        let zero_hash = HashOut {
-            elements: [GoldilocksField::ZERO; 4],
-        };
-        let tree = MerkleTree::<F, D>::new(&leaves, zero_hash)?;
+        let tree = MerkleTree::<F, D, H>::new(&leaves)?;
 
         // select leaf index to prove
         let leaf_index: usize = 8;
@@ -236,10 +233,7 @@ mod tests {
             })
             .collect();
 
-        let zero_hash = HashOut {
-            elements: [GoldilocksField::ZERO; 4],
-        };
-        let tree = MerkleTree::<F, D>::new(&leaves, zero_hash)?;
+        let tree = MerkleTree::<F, D, H>::new(&leaves)?;
 
         let expected_root = tree.root()?;
 

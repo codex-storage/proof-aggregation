@@ -2,7 +2,7 @@ use plonky2::plonk::circuit_data::{ProverCircuitData, VerifierCircuitData};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
-use crate::gen_input::gen_testing_circuit_input;
+use crate::gen_input::InputGenerator;
 use crate::params::{C, D, F, HF, Params};
 
 pub mod tree_test;
@@ -16,7 +16,8 @@ pub fn run_sampling_circ() -> anyhow::Result<(ProofWithPublicInputs<F, C, D>, Pr
     // Circuit that does the sampling - 100 samples
     let mut params = Params::default();
     params.set_n_samples(100);
-    let one_circ_input = gen_testing_circuit_input::<F, D>(&params.input_params);
+    let input_gen = InputGenerator::<F,D,HF>::new(params.input_params.clone());
+    let one_circ_input = input_gen.gen_testing_circuit_input();
     let samp_circ = SampleCircuit::<F,D,HF>::new(params.circuit_params);
     let (inner_tar, inner_data) = samp_circ.build_with_standard_config()?;
 
