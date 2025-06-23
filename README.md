@@ -4,7 +4,7 @@ Proof Aggregation
 This repository contains all work related to the Codex storage proof system which supports proof aggregation (currently only local proof aggregation).
 
 ## Quick Usage
-see [`codex-storage-proofs-circuits`](./codex-storage-proofs-circuits) to look at the circuits.
+see [`codex-storage-proofs-circuits`](./codex-plonky2-circuits) to look at the circuits.
 
 see [`proof-input`](./proof-input) to test the circuits.
 
