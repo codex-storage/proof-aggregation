@@ -1,7 +1,7 @@
 use std::time::Instant;
 use anyhow::Result;
-use proof_input::serialization::circuit_input::export_circ_input_to_json;
-use proof_input::gen_input::InputGenerator;
+use proof_input::input_generator::serialization::export_circ_input_to_json;
+use proof_input::input_generator::InputGenerator;
 use proof_input::params::Params;
 use proof_input::params::{D, F, HF};
 use crate::file_paths::SAMPLING_CIRC_BASE_PATH;
