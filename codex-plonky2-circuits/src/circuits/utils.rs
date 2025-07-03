@@ -1,5 +1,3 @@
-use std::{fs, io};
-use std::path::Path;
 use itertools::Itertools;
 use plonky2::hash::hash_types::{HashOut, HashOutTarget, NUM_HASH_OUT_ELTS, RichField};
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
@@ -22,18 +20,18 @@ pub fn ceiling_log2<
     n: usize,
 )-> (Vec<BoolTarget>, Vec<BoolTarget>){
     let one = builder.one();
-    let zero = builder.zero();
     let last_index = builder.sub(inp, one.clone());
     let last_bits = builder.split_le(last_index,n);
 
-    let mut aux: Vec<BoolTarget> = vec![BoolTarget::new_unsafe(zero.clone()); n + 1];
-    aux[n] = BoolTarget::new_unsafe(one.clone());
-    let mut mask: Vec<BoolTarget> = vec![BoolTarget::new_unsafe(zero.clone()); n + 1];
-    for i in (0..n).rev(){
-        let diff = builder.sub(one.clone(), last_bits[i].target);
-        let aux_i = builder.mul( aux[i+1].target, diff);
-        aux[i] = BoolTarget::new_unsafe(aux_i);
-        mask[i] = BoolTarget::new_unsafe(builder.sub(one.clone(), aux[i].target));
+    let mut aux: Vec<BoolTarget> = vec![builder.constant_bool(false); n + 1];
+    aux[n] = builder.constant_bool(true);
+    let mut mask: Vec<BoolTarget> = vec![builder.constant_bool(false); n + 1];
+    for i in (0..n).rev() {
+        // Compute the inverted last_bit and then AND
+        let diff_bool = builder.not(last_bits[i]);
+        aux[i] = builder.and(aux[i+1], diff_bool);
+        // mask is simply the negation
+        mask[i] = builder.not(aux[i]);
     }
 
     (last_bits, mask)
@@ -105,11 +103,6 @@ pub fn add_assign_hash_out_target<
     for i in 0..NUM_HASH_OUT_ELTS {
         mut_hot.elements[i] = builder.add(mut_hot.elements[i], hot.elements[i]);
     }
-}
-
-/// Reads the contents of the specified file and returns them as a vector of bytes using `std::fs::read`.
-pub fn read_bytes_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-    fs::read(path)
 }
 
 /// select hash helper method
