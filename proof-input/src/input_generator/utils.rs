@@ -2,7 +2,7 @@ use plonky2::hash::hash_types::{HashOut, RichField};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::params::HF;
-use crate::sponge::hash_n_with_padding;
+use crate::hash::sponge::hash_n_with_padding;
 
 // --------- helper functions ---------
 
@@ -99,8 +99,4 @@ pub fn ceiling_log2(
     }
 
     (last_bits, mask)
-}
-
-pub fn zero<F: RichField + Extendable<D> + Poseidon2, const D: usize>() -> HashOut<F>{
-    HashOut { elements: [F::ZERO; 4],}
 }

@@ -9,8 +9,7 @@ use std::ops::Shr;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use crate::merkle_tree::key_compress::key_compress;
-use crate::utils::zero;
+use crate::hash::key_compress::key_compress;
 
 // Constants for the keys used in compression
 pub const KEY_NONE: u64 = 0x0;
@@ -107,13 +106,13 @@ fn merkle_tree_worker<
         return Ok(vec![xs.to_vec()]);
     }
 
-    let halfn = m / 2;
-    let n = 2 * halfn;
+    let half_n = m / 2;
+    let n = 2 * half_n;
     let is_odd = n != m;
 
-    let mut ys = Vec::with_capacity(halfn + if is_odd { 1 } else { 0 });
+    let mut ys = Vec::with_capacity(half_n + if is_odd { 1 } else { 0 });
 
-    for i in 0..halfn {
+    for i in 0..half_n {
         let key = if is_bottom_layer { KEY_BOTTOM_LAYER } else { KEY_NONE };
         let h = key_compress::<F, D, H>(xs[2 * i], xs[2 * i + 1], key);
         ys.push(h);
@@ -145,7 +144,7 @@ pub struct MerkleProof<
 > {
     pub index: usize,       // Index of the leaf
     pub path: Vec<HashOut<F>>, // Sibling hashes from the leaf to the root
-    pub nleaves: usize,     // Total number of leaves
+    pub n_leaves: usize,     // Total number of leaves
     phantom_data: PhantomData<H>
 }
 
@@ -157,18 +156,18 @@ impl<
     pub fn new(
         index: usize,
         path: Vec<HashOut<F>>,
-        nleaves: usize,
+        n_leaves: usize,
     ) -> Self{
         Self{
             index,
             path,
-            nleaves,
+            n_leaves,
             phantom_data: PhantomData::default(),
         }
     }
     /// Reconstructs the root hash from the proof and the given leaf.
     pub fn reconstruct_root(&self, leaf: HashOut<F>) -> Result<HashOut<F>> {
-        let mut m = self.nleaves;
+        let mut m = self.n_leaves;
         let mut j = self.index;
         let mut h = leaf;
         let mut bottom_flag = KEY_BOTTOM_LAYER;
@@ -197,6 +196,11 @@ impl<
 
     /// reconstruct the root using path_bits and last_bits in similar way as the circuit
     /// this is used for testing - sanity check
+    ///  * `leaf`:        the leaf hash
+    ///  * `path_bits`:    the linear index of the leaf, in binary decomposition (least significant bit first)
+    ///  * `last_bits`:    the index of the last leaf (= nLeaves-1), in binary decomposition
+    ///  * `mask_bits`:    the bits of the mask `2^ceilingLog2(size) - 1`
+    ///  * `merkle_path`:  the Merkle inclusion proof (required hashes, starting from the leaf and ending near the root)
     pub fn reconstruct_root2(leaf: HashOut<F>, path_bits: Vec<bool>, last_bits:Vec<bool>,  path: Vec<HashOut<F>>, mask_bits:Vec<bool>, depth: usize) -> Result<HashOut<F>> {
         let is_last = compute_is_last(path_bits.clone(),last_bits);
 
@@ -223,9 +227,11 @@ impl<
             i += 1;
         }
 
+        let mut mask_bits_corrected = mask_bits.clone();
+        mask_bits_corrected[0] = true;
         let mut reconstructed_root = HashOut::<F>::ZERO;
         for k in 0..depth{
-            let diff = (mask_bits[k] as u64) - (mask_bits[k+1] as u64);
+            let diff = (mask_bits_corrected[k] as u64) - (mask_bits_corrected[k+1] as u64);
             let mul_res: Vec<F> = h[k+1].elements.iter().map(|e| e.mul(F::from_canonical_u64(diff))).collect();
             reconstructed_root = HashOut::<F>::from_vec(
                 mul_res.iter().zip(reconstructed_root.elements).map(|(e1,e2)| e1.add(e2)).collect()
@@ -259,283 +265,6 @@ fn compute_is_last(path_bits: Vec<bool>, last_bits: Vec<bool>) -> Vec<bool> {
     is_last
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use plonky2::field::types::Field;
-    use crate::merkle_tree::key_compress::key_compress;
-    use plonky2::plonk::config::Hasher;
-    use plonky2::hash::poseidon::PoseidonHash;
-    use plonky2::field::goldilocks_field::GoldilocksField;
-
-    // types used in all tests
-    type F = GoldilocksField;
-    const D: usize = 2;
-    type H = PoseidonHash;
-
-    fn compress(
-        x: HashOut<F>,
-        y: HashOut<F>,
-        key: u64,
-    ) -> HashOut<F> {
-        key_compress::<F,D,H>(x,y,key)
-    }
-
-    fn make_tree(
-        data: &[F],
-    ) -> Result<MerkleTree<F,D, H>> {
-        // Hash the data to obtain leaf hashes
-        let leaves: Vec<HashOut<GoldilocksField>> = data
-            .iter()
-            .map(|&element| {
-                // Hash each field element to get the leaf hash
-                H::hash_no_pad(&[element])
-            })
-            .collect();
-
-        MerkleTree::<F, D, H>::new(&leaves)
-    }
-
-    #[test]
-    fn single_proof_test() -> Result<()> {
-        let data = (1u64..=8)
-            .map(|i| F::from_canonical_u64(i))
-            .collect::<Vec<_>>();
-
-        // Hash the data to obtain leaf hashes
-        let leaves: Vec<HashOut<F>> = data
-            .iter()
-            .map(|&element| {
-                // Hash each field element to get the leaf hash
-                H::hash_no_pad(&[element])
-            })
-            .collect();
-
-        // Build the Merkle tree
-        let tree = MerkleTree::<F, D, H>::new(&leaves)?;
-
-        // Get the root
-        let root = tree.root()?;
-
-        // Get a proof for the first leaf
-        let proof = tree.get_proof(0)?;
-
-        // Verify the proof
-        let is_valid = proof.verify(leaves[0], root)?;
-        assert!(is_valid, "Merkle proof verification failed");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_correctness_even_bottom_layer() -> Result<()> {
-        // Data for the test (field elements)
-        let data = (1u64..=8)
-            .map(|i| F::from_canonical_u64(i))
-            .collect::<Vec<_>>();
-
-        // Hash the data to get leaf hashes
-        let leaf_hashes: Vec<HashOut<F>> = data
-            .iter()
-            .map(|&element| H::hash_no_pad(&[element]))
-            .collect();
-
-        let expected_root =
-            compress(
-                compress(
-                    compress(
-                        leaf_hashes[0],
-                        leaf_hashes[1],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    compress(
-                        leaf_hashes[2],
-                        leaf_hashes[3],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    KEY_NONE,
-                ),
-                compress(
-                    compress(
-                        leaf_hashes[4],
-                        leaf_hashes[5],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    compress(
-                        leaf_hashes[6],
-                        leaf_hashes[7],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    KEY_NONE,
-                ),
-                KEY_NONE,
-            );
-
-        // Build the tree
-        let tree = make_tree(&data)?;
-
-        // Get the computed root
-        let computed_root = tree.root()?;
-
-        // Check that the computed root matches the expected root
-        assert_eq!(computed_root, expected_root);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_correctness_odd_bottom_layer() -> Result<()> {
-        // Data for the test (field elements)
-        let data = (1u64..=7)
-            .map(|i| F::from_canonical_u64(i))
-            .collect::<Vec<_>>();
-
-        // Hash the data to get leaf hashes
-        let leaf_hashes: Vec<HashOut<F>> = data
-            .iter()
-            .map(|&element| H::hash_no_pad(&[element]))
-            .collect();
-
-        let expected_root =
-            compress(
-                compress(
-                    compress(
-                        leaf_hashes[0],
-                        leaf_hashes[1],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    compress(
-                        leaf_hashes[2],
-                        leaf_hashes[3],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    KEY_NONE,
-                ),
-                compress(
-                    compress(
-                        leaf_hashes[4],
-                        leaf_hashes[5],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    compress(
-                        leaf_hashes[6],
-                        zero::<F,D>(),
-                        KEY_ODD_AND_BOTTOM_LAYER,
-                    ),
-                    KEY_NONE,
-                ),
-                KEY_NONE,
-            );
-
-        // Build the tree
-        let tree = make_tree(&data)?;
-
-        // Get the computed root
-        let computed_root = tree.root()?;
-
-        // Check that the computed root matches the expected root
-        assert_eq!(computed_root, expected_root);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_correctness_even_bottom_odd_upper_layers() -> Result<()> {
-        // Data for the test (field elements)
-        let data = (1u64..=10)
-            .map(|i| F::from_canonical_u64(i))
-            .collect::<Vec<_>>();
-
-        // Hash the data to get leaf hashes
-        let leaf_hashes: Vec<HashOut<F>> = data
-            .iter()
-            .map(|&element| H::hash_no_pad(&[element]))
-            .collect();
-
-        let expected_root = compress(
-            compress(
-                compress(
-                    compress(
-                        leaf_hashes[0],
-                        leaf_hashes[1],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    compress(
-                        leaf_hashes[2],
-                        leaf_hashes[3],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    KEY_NONE,
-                ),
-                compress(
-                    compress(
-                        leaf_hashes[4],
-                        leaf_hashes[5],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    compress(
-                        leaf_hashes[6],
-                        leaf_hashes[7],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    KEY_NONE,
-                ),
-                KEY_NONE,
-            ),
-            compress(
-                compress(
-                    compress(
-                        leaf_hashes[8],
-                        leaf_hashes[9],
-                        KEY_BOTTOM_LAYER,
-                    ),
-                    zero::<F,D>(),
-                    KEY_ODD,
-                ),
-                zero::<F,D>(),
-                KEY_ODD,
-            ),
-            KEY_NONE,
-        );
-
-        // Build the tree
-        let tree = make_tree(&data)?;
-
-        // Get the computed root
-        let computed_root = tree.root()?;
-
-        // Check that the computed root matches the expected root
-        assert_eq!(computed_root, expected_root);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_proofs() -> Result<()> {
-        // Data for the test (field elements)
-        let data = (1u64..=10)
-            .map(|i| F::from_canonical_u64(i))
-            .collect::<Vec<_>>();
-
-        // Hash the data to get leaf hashes
-        let leaf_hashes: Vec<HashOut<F>> = data
-            .iter()
-            .map(|&element| H::hash_no_pad(&[element]))
-            .collect();
-
-        // Build the tree
-        let tree = MerkleTree::<F, D, H>::new(&leaf_hashes)?;
-
-        // Get the root
-        let expected_root = tree.root()?;
-
-        // Verify proofs for all leaves
-        for (i, &leaf_hash) in leaf_hashes.iter().enumerate() {
-            let proof = tree.get_proof(i)?;
-            let is_valid = proof.verify(leaf_hash, expected_root)?;
-            assert!(is_valid, "Proof verification failed for leaf {}", i);
-        }
-
-        Ok(())
-    }
+pub fn zero<F: RichField + Extendable<D> + Poseidon2, const D: usize>() -> HashOut<F>{
+    HashOut { elements: [F::ZERO; 4],}
 }

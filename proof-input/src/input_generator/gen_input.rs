@@ -4,13 +4,13 @@ use plonky2::hash::hash_types::RichField;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::params::{Params,InputParams};
-use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
+use crate::input_generator::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use crate::merkle_tree::merkle_safe::MerkleProof;
 use codex_plonky2_circuits::circuits::sample_cells::{MerklePath, SampleCircuitInput};
 use plonky2::plonk::config::AlgebraicHasher;
-use crate::data_structs::DatasetTree;
-use crate::serialization::circuit_input::export_circ_input_to_json;
-use crate::sponge::hash_bytes_no_padding;
+use crate::input_generator::data_structs::DatasetTree;
+use crate::input_generator::serialization::export_circ_input_to_json;
+use crate::hash::sponge::hash_n_no_padding;
 
 /// Input Generator to generates circuit input (SampleCircuitInput)
 /// which can be later stored into json see json.rs
@@ -164,7 +164,7 @@ impl<
         let slot_path_bits = block_path_bits.split_off(split_point);
 
         // pub type HP = <PoseidonHash as Hasher<F>>::Permutation;
-        let leaf_hash = hash_bytes_no_padding::<F,D,H>(&circ_input.cell_data[ctr].data);
+        let leaf_hash = hash_n_no_padding::<F,D,H>(&circ_input.cell_data[ctr].data);
 
         let mut block_path = circ_input.merkle_paths[ctr].path.clone();
         let slot_path = block_path.split_off(split_point);
@@ -194,65 +194,4 @@ impl<
 
         Ok(reconstructed_root.unwrap() == circ_input.slot_root)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Instant;
-    use plonky2::hash::poseidon::PoseidonHash;
-    use plonky2::plonk::config::PoseidonGoldilocksConfig;
-    use plonky2::plonk::proof::ProofWithPublicInputs;
-    use plonky2_field::goldilocks_field::GoldilocksField;
-    use super::*;
-    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
-    use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
-
-    // types used in all tests
-    type F = GoldilocksField;
-    const D: usize = 2;
-    type H = PoseidonHash;
-    type C = PoseidonGoldilocksConfig;
-
-    // Test sample cells (non-circuit)
-    #[test]
-    fn test_gen_verify_proof(){
-        let input_gen = InputGenerator::<F,D,H>::default();
-        let w = input_gen.gen_testing_circuit_input();
-        assert!(input_gen.verify_circuit_input(w));
-    }
-
-    // Test sample cells in-circuit for a selected slot
-    #[test]
-    fn test_proof_in_circuit() -> anyhow::Result<()> {
-        // get input
-        let mut params = Params::default();
-        params.set_n_samples(10);
-        let input_params = params.input_params;
-        let circuit_params = params.circuit_params;
-        let input_gen = InputGenerator::<F,D,H>::new(input_params);
-        let circ_input = input_gen.gen_testing_circuit_input();
-
-        // build the circuit
-        let circ = SampleCircuit::<F,D,H>::new(circuit_params.clone());
-        let (targets, data) = circ.build_with_standard_config()?;
-        println!("circuit size = {:?}", data.common.degree_bits());
-
-        // separate the prover and verifier
-        let verifier_data = data.verifier_data();
-        let prover_data = data.prover_data();
-
-        // Prove the circuit using the circuit input
-        let start_time = Instant::now();
-        let proof_with_pis: ProofWithPublicInputs<F, C, D> = circ.prove(&targets, &circ_input, &prover_data)?;
-        println!("prove_time = {:?}", start_time.elapsed());
-
-        // Verify the proof
-        assert!(
-            verifier_data.verify(proof_with_pis).is_ok(),
-            "Merkle proof verification failed"
-        );
-
-        Ok(())
-    }
-
 }

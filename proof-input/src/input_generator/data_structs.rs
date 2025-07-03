@@ -7,8 +7,8 @@ use codex_plonky2_circuits::circuits::sample_cells::Cell;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
 use crate::params::{InputParams, HF};
-use crate::sponge::hash_bytes_no_padding;
-use crate::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le};
+use crate::hash::sponge::hash_n_no_padding;
+use crate::input_generator::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le};
 
 // ----------------- slot tree -----------------
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl<
     pub fn new(cells: Vec<Cell<F, D>>, params: InputParams) -> Self {
         let leaves: Vec<HashOut<F>> = cells
             .iter()
-            .map(|element| hash_bytes_no_padding::<F,D,HF>(&element.data))
+            .map(|element| hash_n_no_padding::<F,D,HF>(&element.data))
             .collect();
 
         let n_blocks = params.n_blocks_test();
