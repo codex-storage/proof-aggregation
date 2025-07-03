@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use plonky2::plonk::circuit_data::{CircuitData, CommonCircuitData, VerifierCircuitData, VerifierOnlyCircuitData};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData, VerifierOnlyCircuitData};
 use plonky2::plonk::proof::{ProofWithPublicInputs};
 use plonky2::recursion::dummy_circuit::{dummy_proof};
 use hashbrown::HashMap;
@@ -30,6 +30,17 @@ impl<F, const D: usize, C> DummyProofGen<F, D, C>
         C: GenericConfig<D, F = F>,
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
 {
+    /// Builds a dummy circuit from the provided common circuit data.
+    pub fn gen_dummy_common_data(
+    ) -> CommonCircuitData<F, D> {
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        // Add one virtual public input so that the circuit has minimal structure.
+        builder.add_virtual_public_input();
+        let circuit = builder.build::<C>();
+        circuit.common.clone()
+    }
+
     /// Builds a dummy circuit from the provided common circuit data.
     pub fn gen_dummy_circ_data(
         common_data: &CommonCircuitData<F, D>,
