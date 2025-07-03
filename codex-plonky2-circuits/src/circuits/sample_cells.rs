@@ -223,25 +223,22 @@ impl<
         let mask_bits = builder.split_le(slot_last_index,max_depth);
 
         // last and mask bits for block tree
-        let mut b_last_bits = builder.split_le(slot_last_index,max_depth);
-        let mut b_mask_bits = builder.split_le(slot_last_index,max_depth);
+        let mut b_last_bits = mask_bits.clone();
+        let mut b_mask_bits = mask_bits.clone();
 
         // last and mask bits for the slot tree
         let s_last_bits = b_last_bits.split_off(block_tree_depth);
         let mut s_mask_bits = b_mask_bits.split_off(block_tree_depth);
 
         // pad mask bits with 0
-        b_mask_bits.push(BoolTarget::new_unsafe(zero.clone()));
-        s_mask_bits.push(BoolTarget::new_unsafe(zero.clone()));
+        b_mask_bits.push(builder.constant_bool(false));
+        s_mask_bits.push(builder.constant_bool(false));
 
         for i in 0..n_samples{
             // cell data targets
             let data_i = (0..n_field_elems_per_cell).map(|_| builder.add_virtual_target()).collect::<Vec<_>>();
             // hash the cell data
-            let mut hash_inputs:Vec<Target>= Vec::new();
-            hash_inputs.extend_from_slice(&data_i);
-            // let data_i_hash = builder.hash_n_to_hash_no_pad::<HF>(hash_inputs);
-            let data_i_hash = hash_n_no_padding::<F,D,H>(builder, hash_inputs)?;
+            let data_i_hash = hash_n_no_padding::<F,D,H>(builder, data_i.clone())?;
             // make the counter into hash digest
             let ctr_target = builder.constant(F::from_canonical_u64((i+1) as u64));
             let mut ctr = builder.add_virtual_hash();
@@ -328,13 +325,14 @@ impl<
         hash_inputs.extend_from_slice(&ctr.elements);
 
         let hash_out = hash_n_with_padding::<F,D,H>(builder, hash_inputs)?;
+        // extract the lowest `max_depth` bits. We expect the hash elements to be 64 bits (Goldilocks field elems).
         let cell_index_bits =  builder.low_bits(hash_out.elements[0], self.params.max_depth, 64);
 
         let mut masked_cell_index_bits = vec![];
 
         // extract the lowest 32 bits using the bit mask
         for i in 0..self.params.max_depth{
-            masked_cell_index_bits.push(BoolTarget::new_unsafe(builder.mul(mask_bits[i].target, cell_index_bits[i].target)));
+            masked_cell_index_bits.push(builder.and(mask_bits[i], cell_index_bits[i]));
         }
 
         Ok(masked_cell_index_bits)
