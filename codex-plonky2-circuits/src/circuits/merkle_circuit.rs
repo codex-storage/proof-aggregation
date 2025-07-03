@@ -170,7 +170,7 @@ impl<
 
         }
 
-        // select the right layer using the mask bits
+        // select the right layer using the corrected mask bits
         let mut reconstructed_root  = HashOutTarget::from_vec([zero;4].to_vec());
         for k in 0..max_depth {
             let diff = builder.sub(mask_bit_corrected[k].target, mask_bit_corrected[k+1].target);
