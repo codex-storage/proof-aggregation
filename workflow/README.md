@@ -1,5 +1,4 @@
 # Workflow of the Storage Proof Circuits
-WARNING: This is a work-in-progress prototype, and has not received careful code review. This implementation is NOT ready for production use.
 
 This crate guides you through generating the circuit input, 
 building the circuit, 
@@ -35,8 +34,7 @@ rustup override set nightly
 
 - Go 1.22+ (for the GNARK-based verifier)
 
-### Generate Circuit Input
-The steps to generate circuit input with **fake data** are the following:
+### Workflow
 
 #### Step 1: Setting Up Parameters
 - Input params: parameters for generating the circuit input can be defined in [`params.sh`](scripts/params.sh).
