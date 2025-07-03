@@ -5,7 +5,7 @@ use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::Poseidon2;
-use crate::circuit_helper::Plonky2Circuit;
+use crate::circuit_trait::Plonky2Circuit;
 use crate::circuits::params::CircuitParams;
 use crate::circuits::sample_cells::{SampleCircuit, SampleCircuitInput, SampleTargets};
 use crate::Result;

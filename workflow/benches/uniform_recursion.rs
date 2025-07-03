@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use plonky2::plonk::proof::ProofWithPublicInputs;
-use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit};
 use codex_plonky2_circuits::recursion::uniform::tree::TreeRecursion;
 use proof_input::params::{C, D, F,HF};

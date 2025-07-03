@@ -14,7 +14,7 @@ mod serialization_tests {
     use super::*;
     use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput};
     use plonky2::plonk::circuit_data::{CircuitConfig, ProverCircuitData, VerifierCircuitData};
-    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+    use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
     use proof_input::input_generator::InputGenerator;
     use proof_input::input_generator::serialization::{export_circ_input_to_json, import_circ_input_from_json};
     use std::path::Path;

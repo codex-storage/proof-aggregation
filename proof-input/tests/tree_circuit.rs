@@ -8,7 +8,7 @@ use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2_field::goldilocks_field::GoldilocksField;
 use plonky2_field::types::{Field, PrimeField64};
-use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use codex_plonky2_circuits::recursion::leaf::{LeafCircuit, LeafInput, BUCKET_SIZE};
 use proof_input::input_generator::InputGenerator;
@@ -197,7 +197,7 @@ pub mod leaf_tests {
 mod node_tests {
     use plonky2::plonk::circuit_data::VerifierCircuitData;
     use plonky2::plonk::proof::ProofWithPublicInputs;
-    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+    use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
     use codex_plonky2_circuits::recursion::node::{NodeCircuit, NodeInput};
     use super::*;
 
@@ -391,7 +391,7 @@ mod bn254wrap_tests {
     use plonky2::plonk::proof::ProofWithPublicInputs;
     use codex_plonky2_circuits::bn254_wrapper::config::PoseidonBN254GoldilocksConfig;
     use codex_plonky2_circuits::bn254_wrapper::wrap::{WrapCircuit, WrapInput, WrappedOutput};
-    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+    use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
     use codex_plonky2_circuits::recursion::tree::TreeRecursion;
     use super::*;
 

@@ -5,7 +5,7 @@ use plonky2::hash::hash_types::HashOut;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, VerifierCircuitData};
-use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 
 use codex_plonky2_circuits::recursion::uniform::compress::{CompressionCircuit, CompressionInput};
 use codex_plonky2_circuits::recursion::uniform::tree::get_hash_of_verifier_data;

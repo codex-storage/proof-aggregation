@@ -1,7 +1,7 @@
 pub mod circuits;
 pub mod recursion;
 pub mod error;
-pub mod circuit_helper;
+pub mod circuit_trait;
 mod bundle;
 pub mod bn254_wrapper;
 pub mod serialization;

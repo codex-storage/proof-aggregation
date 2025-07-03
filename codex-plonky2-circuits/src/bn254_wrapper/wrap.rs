@@ -10,7 +10,7 @@ use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
 use serde::Serialize;
 use plonky2_poseidon2::Poseidon2;
-use crate::circuit_helper::Plonky2Circuit;
+use crate::circuit_trait::Plonky2Circuit;
 use crate::error::CircuitError;
 
 /// Wrap circuit - wraps the plonky2 proof with

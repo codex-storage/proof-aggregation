@@ -28,7 +28,7 @@ mod sampling_circuit_tests {
     use super::*;
     use std::time::Instant;
     use plonky2::plonk::proof::ProofWithPublicInputs;
-    use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+    use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
     use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
     use proof_input::input_generator::InputGenerator;
     use proof_input::params::Params;

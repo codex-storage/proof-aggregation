@@ -8,7 +8,7 @@ use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use plonky2_field::extension::Extendable;
 use crate::{error::CircuitError, Result};
 use crate::bundle::Bundle;
-use crate::circuit_helper::Plonky2Circuit;
+use crate::circuit_trait::Plonky2Circuit;
 use crate::recursion::{leaf::{LeafTargets, LeafCircuit}, node::{NodeTargets, NodeCircuit}};
 use crate::recursion::compress::{CompressionCircuit, CompressionInput, CompressionTargets};
 use crate::recursion::leaf::LeafInput;

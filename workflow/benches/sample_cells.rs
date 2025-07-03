@@ -1,7 +1,7 @@
 use anyhow::Result;
 use criterion::{criterion_group, criterion_main, Criterion};
 use plonky2::plonk::circuit_data::{CircuitData, VerifierCircuitData};
-use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use proof_input::gen_input::gen_testing_circuit_input;

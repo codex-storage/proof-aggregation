@@ -32,7 +32,7 @@ use crate::{
     Result,
     error::CircuitError,
 };
-use crate::circuit_helper::Plonky2Circuit;
+use crate::circuit_trait::Plonky2Circuit;
 use crate::circuits::serialization::SerializableHashOutTarget;
 
 /// circuit for sampling a slot in a dataset merkle tree

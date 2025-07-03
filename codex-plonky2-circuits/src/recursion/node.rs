@@ -9,7 +9,7 @@ use plonky2::plonk::proof::{ProofWithPublicInputs, ProofWithPublicInputsTarget};
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::{error::CircuitError,Result};
-use crate::circuit_helper::Plonky2Circuit;
+use crate::circuit_trait::Plonky2Circuit;
 use crate::recursion::dummy_gen::DummyProofGen;
 use crate::recursion::utils::bucket_count;
 

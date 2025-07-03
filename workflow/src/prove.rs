@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::time::Instant;
-use codex_plonky2_circuits::circuit_helper::Plonky2Circuit;
+use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 use proof_input::serialization::circuit_input::{import_circ_input_from_json};
 use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput, SampleTargets};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
