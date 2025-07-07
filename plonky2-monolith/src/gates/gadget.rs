@@ -77,7 +77,7 @@ impl<F: RichField + Extendable<D>, const B: usize, const D: usize> SimpleGenerat
         self.0.limbs_wires()
     }
 
-    fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+    fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) -> anyhow::Result<()>{
         let sum = self
             .0
             .limbs_wires()
@@ -86,7 +86,8 @@ impl<F: RichField + Extendable<D>, const B: usize, const D: usize> SimpleGenerat
             .rev()
             .fold(F::ZERO, |acc, limb| acc * F::from_canonical_usize(B) + limb);
 
-        out_buffer.set_target(self.0.wire_sum(), sum);
+        out_buffer.set_target(self.0.wire_sum(), sum)?;
+        Ok(())
     }
 
     fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {

@@ -342,7 +342,7 @@ impl<F: RichField + Extendable<D>, const B: usize, const D: usize> SimpleGenerat
         vec![self.wire_sum()]
     }
 
-    fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+    fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) -> anyhow::Result<()>{
         let sum_value = witness.get_target(self.wire_sum()).to_canonical_u64() as usize;
         debug_assert_eq!(
             (0..self.num_limbs).fold(sum_value, |acc, _| acc / B),
@@ -380,13 +380,14 @@ impl<F: RichField + Extendable<D>, const B: usize, const D: usize> SimpleGenerat
         let z_field = if a == F::ZERO { F::ONE } else { b };
         let z_prime_field =
             F::inverse(&(z_field - F::from_canonical_u64(1_u64 << 32) + F::ONE)) * z_field;
-        out_buffer.set_target(self.boundary_constraints_wires()[0], z_field);
-        out_buffer.set_target(self.boundary_constraints_wires()[1], z_prime_field);
+        out_buffer.set_target(self.boundary_constraints_wires()[0], z_field)?;
+        out_buffer.set_target(self.boundary_constraints_wires()[1], z_prime_field)?;
 
         assert_eq!(
             z_prime_field * (z_field - F::from_canonical_u64(1_u64 << 32) + F::ONE),
             z_field
         );
+        Ok(())
     }
 
     fn serialize(&self, dst: &mut Vec<u8>, _common_data: &CommonCircuitData<F, D>) -> IoResult<()> {
