@@ -1,5 +1,5 @@
 [workspace]
-members = ["codex-plonky2-circuits","plonky2_poseidon2","proof-input","workflow"]
+members = ["codex-plonky2-circuits","plonky2_poseidon2","proof-input","workflow", "plonky2-monolith"]
 resolver = "2"
 
 [workspace.dependencies]
