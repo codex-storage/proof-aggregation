@@ -9,12 +9,12 @@ keywords = ["cryptography", "PLONK", "hash", "zero_knowledge"]
 categories = ["cryptography"]
 
 [dependencies]
-anyhow = "1.0.75"
-itertools = "0.14.0"
-plonky2 = {version = "1.0.2", default-features = true}
+anyhow = { workspace = true }
+itertools = { workspace = true }
+plonky2 = { workspace = true }
 rand_chacha = "0.9.0"
-serde = "1.0.188"
-unroll = "0.1.5"
+serde = { workspace = true }
+unroll = { workspace = true }
 
 [features]
 default = ["default-sponge-params"]
