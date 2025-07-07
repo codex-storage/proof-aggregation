@@ -1,0 +1,49 @@
+[package]
+name = "plonky2_monolith"
+version = "0.1.0"
+description = "Use Monolith hash to generate Plonky2 proofs and to write Plonky2 circuits"
+edition = "2021"
+license-file = "LICENSE-APACHE"
+readme = "README.md"
+keywords = ["cryptography", "PLONK", "hash", "zero_knowledge"]
+categories = ["cryptography"]
+
+[dependencies]
+anyhow = "1.0.75"
+itertools = "0.14.0"
+plonky2 = {version = "1.0.2", default-features = true}
+rand_chacha = "0.9.0"
+serde = "1.0.188"
+unroll = "0.1.5"
+
+[features]
+default = ["default-sponge-params"]
+default-sponge-params = []
+
+[dev-dependencies]
+log = "0.4.20"
+rstest = "0.24.0"
+serial_test = "3.2.0"
+env_logger = "0.11.6"
+criterion = "0.5.1"
+tynm = "0.1.8"
+
+[target.'cfg(not(target_env = "msvc"))'.dev-dependencies]
+jemallocator = "0.5.0"
+
+[[bench]]
+name = "hashing"
+harness = false
+
+[[bench]]
+name = "merkle"
+harness = false
+
+[[bench]]
+name = "base_proof"
+harness = false
+
+[[bench]]
+name = "recursion"
+harness = false
+
