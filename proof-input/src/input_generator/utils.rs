@@ -1,7 +1,7 @@
 use plonky2::hash::hash_types::{HashOut, RichField};
+use plonky2::plonk::config::Hasher;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
-use crate::params::HF;
 use crate::hash::sponge::hash_n_with_padding;
 
 // --------- helper functions ---------
@@ -42,7 +42,8 @@ pub fn low_bits(index: usize, bit_length: usize) -> Vec<bool> {
 /// this is the non-circuit version for testing
 pub fn calculate_cell_index_bits<
     F: RichField + Extendable<D> + Poseidon2,
-    const D: usize
+    const D: usize,
+    H: Hasher<F>,
 >(entropy: &Vec<F>, slot_root: HashOut<F>, ctr: usize, depth: usize, mask_bits: Vec<bool>) -> Vec<bool> {
     let ctr_field = F::from_canonical_u64(ctr as u64);
     let mut ctr_as_digest = HashOut::<F>::ZERO;
@@ -51,7 +52,7 @@ pub fn calculate_cell_index_bits<
     hash_inputs.extend_from_slice(&entropy);
     hash_inputs.extend_from_slice(&slot_root.elements);
     hash_inputs.extend_from_slice(&ctr_as_digest.elements);
-    let hash_output = hash_n_with_padding::<F,D,HF>(&hash_inputs);
+    let hash_output = hash_n_with_padding::<F,D,H>(&hash_inputs);
     let cell_index_bytes = hash_output.elements[0].to_canonical_u64();
 
     let cell_index_bits = low_bits(cell_index_bytes as usize, depth);
