@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use anyhow::{ensure, Result};
 use plonky2::hash::hash_types::{HashOut, RichField};
 use std::ops::Shr;
-use plonky2::plonk::config::AlgebraicHasher;
+use plonky2::plonk::config::Hasher;
 use plonky2_field::extension::Extendable;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::hash::key_compress::key_compress;
@@ -22,7 +22,7 @@ pub const KEY_ODD_AND_BOTTOM_LAYER: u64 = 0x3;
 pub struct MerkleTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > {
     pub layers: Vec<Vec<HashOut<F>>>,
     phantom_data: PhantomData<H>
@@ -31,7 +31,7 @@ pub struct MerkleTree<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > MerkleTree<F, D, H> {
     /// Constructs a new Merkle tree from the given leaves.
     pub fn new(
@@ -96,7 +96,7 @@ impl<
 fn merkle_tree_worker<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 >(
     xs: &[HashOut<F>],
     is_bottom_layer: bool,
@@ -140,7 +140,7 @@ fn merkle_tree_worker<
 pub struct MerkleProof<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > {
     pub index: usize,       // Index of the leaf
     pub path: Vec<HashOut<F>>, // Sibling hashes from the leaf to the root
@@ -151,7 +151,7 @@ pub struct MerkleProof<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > MerkleProof<F, D, H> {
     pub fn new(
         index: usize,
