@@ -7,7 +7,7 @@ use crate::params::{Params,InputParams};
 use crate::input_generator::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, ceiling_log2, usize_to_bits_le};
 use crate::merkle_tree::merkle_safe::MerkleProof;
 use codex_plonky2_circuits::circuits::sample_cells::{MerklePath, SampleCircuitInput};
-use plonky2::plonk::config::AlgebraicHasher;
+use plonky2::plonk::config::Hasher;
 use crate::input_generator::data_structs::DatasetTree;
 use crate::input_generator::serialization::export_circ_input_to_json;
 use crate::hash::sponge::hash_n_no_padding;
@@ -18,7 +18,7 @@ use crate::hash::sponge::hash_n_no_padding;
 pub struct InputGenerator<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 >{
     pub input_params: InputParams,
     phantom_data: PhantomData<(F,H)>
@@ -27,7 +27,7 @@ pub struct InputGenerator<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > InputGenerator<F, D, H> {
 
     pub fn new(input_params: InputParams) -> Self{
@@ -131,7 +131,7 @@ impl<
         // get the index for cell from H(slot_root|counter|entropy)
         let mask_bits = usize_to_bits_le(params.n_cells -1, params.max_depth);
         for i in 0..params.n_samples {
-            let cell_index_bits = calculate_cell_index_bits(
+            let cell_index_bits = calculate_cell_index_bits::<F,D,H>(
                 &circ_input.entropy.elements.to_vec(),
                 slot_root,
                 i + 1,

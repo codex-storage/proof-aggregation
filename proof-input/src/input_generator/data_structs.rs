@@ -1,12 +1,12 @@
 // Data structure used to generate the proof input
 
 use plonky2::hash::hash_types::{HashOut, RichField};
-use plonky2::plonk::config::AlgebraicHasher;
+use plonky2::plonk::config::Hasher;
 use plonky2_field::extension::Extendable;
 use codex_plonky2_circuits::circuits::sample_cells::Cell;
 use plonky2_poseidon2::poseidon2_hash::poseidon2::Poseidon2;
 use crate::merkle_tree::merkle_safe::{MerkleProof, MerkleTree};
-use crate::params::{InputParams, HF};
+use crate::params::InputParams;
 use crate::hash::sponge::hash_n_no_padding;
 use crate::input_generator::utils::{bits_le_padded_to_usize, calculate_cell_index_bits, usize_to_bits_le};
 
@@ -15,7 +15,7 @@ use crate::input_generator::utils::{bits_le_padded_to_usize, calculate_cell_inde
 pub struct SlotTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > {
     pub tree: MerkleTree<F, D, H>,         // slot tree
     pub block_trees: Vec<MerkleTree<F,D, H>>, // vec of block trees
@@ -26,7 +26,7 @@ pub struct SlotTree<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > SlotTree<F, D, H> {
     /// Create a slot tree with fake data, for testing only
     pub fn new_default(params: &InputParams) -> Self {
@@ -41,7 +41,7 @@ impl<
     pub fn new(cells: Vec<Cell<F, D>>, params: InputParams) -> Self {
         let leaves: Vec<HashOut<F>> = cells
             .iter()
-            .map(|element| hash_n_no_padding::<F,D,HF>(&element.data))
+            .map(|element| hash_n_no_padding::<F,D,H>(&element.data))
             .collect();
 
         let n_blocks = params.n_blocks_test();
@@ -99,7 +99,7 @@ impl<
 pub struct DatasetTree<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > {
     pub tree: MerkleTree<F,D,H>,          // dataset tree
     pub slot_trees: Vec<SlotTree<F, D, H>>, // vec of slot trees
@@ -111,7 +111,7 @@ pub struct DatasetTree<
 pub struct DatasetProof<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > {
     pub slot_index: F,
     pub entropy: HashOut<F>,
@@ -123,7 +123,7 @@ pub struct DatasetProof<
 impl<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
-    H: AlgebraicHasher<F>,
+    H: Hasher<F>,
 > DatasetTree<F, D, H> {
     /// Dataset tree with fake data, for testing only
     pub fn new_default(params: &InputParams) -> Self {
@@ -204,7 +204,7 @@ impl<
         // get the index for cell from H(slot_root|counter|entropy)
         let mask_bits = usize_to_bits_le(self.params.n_cells-1, self.params.max_depth+1);
         for i in 0..self.params.n_samples {
-            let cell_index_bits = calculate_cell_index_bits(
+            let cell_index_bits = calculate_cell_index_bits::<F,D,H>(
                 &entropy_as_digest.elements.to_vec(),
                 slot_root,
                 i + 1,
