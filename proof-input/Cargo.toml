@@ -15,6 +15,7 @@ plonky2_field = { workspace = true }
 # --- local ---
 plonky2_poseidon2 = { path = "../plonky2_poseidon2" }
 codex-plonky2-circuits = { path = "../codex-plonky2-circuits" }
+plonky2_monolith = { path = "../plonky2-monolith" }
 
 [features]
 default = []
