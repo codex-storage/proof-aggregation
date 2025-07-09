@@ -13,10 +13,17 @@ use crate::circuit_trait::Plonky2Circuit;
 use crate::recursion::dummy_gen::DummyProofGen;
 use crate::recursion::utils::{bucket_count, compute_flag_buckets};
 
+/// the bucket size is the number of flags in each bucket where:
+/// bucket: is a single Goldilocks field element where only `BUCKET_SIZE` bits are used for flags.
+/// flags: is a boolean which indicates whether the inner proof is real or dummy.
+/// flag_buckets: is a vector of M buckets, where each bucket contains `BUCKET_SIZE` flags.
+/// Typically, M = ceil(T/BUCKET_SIZE) where T is the total number of inner proofs in the recursion tree.
 pub const BUCKET_SIZE: usize = 32;
 
 /// recursion leaf circuit - verifies 1 inner proof
-/// T: total number of sampling proofs
+/// the inner proof can be real or dummy
+/// T: total number of inner (sampling) proofs
+/// inner_verifier_data: is the verifier data for the inner (sampling) circuit
 #[derive(Clone, Debug)]
 pub struct LeafCircuit<
     F: RichField + Extendable<D> + Poseidon2,
@@ -33,8 +40,8 @@ pub struct LeafCircuit<
 
 /// recursion leaf targets
 /// inner_proof: inner (sampling) proofs
-/// index: index of the node
-/// flags: boolean target for each flag/signal for switching between real and dummy leaf proof
+/// index: index of the leaf
+/// flags: boolean target for each flag/signal for switching between real and dummy inner proof
 #[derive(Clone, Debug)]
 pub struct LeafTargets <
     const D: usize,
@@ -87,6 +94,23 @@ impl<
     type Targets = LeafTargets<D>;
     type Input = LeafInput<F, D, C>;
 
+    /// The circuit logic:
+    /// - create a virtual proof with public inputs
+    /// - hash the public inputs of the virtual proof and make it public
+    /// - add zero hash to the public inputs so that it shares the same structure as the tree node
+    /// - add two virtual constant targets for the verifier data, one for real inner proof and one for dummy inner proof
+    /// - add virtual target for the flag and index, and only assign the index as public.
+    /// - compute the flag buckets from the index and flag and make them public
+    /// - select the required verifier data based on the flag (either real or dummy).
+    /// - verify the inner proof in-circuit using the selected verifier data.
+    ///
+    /// The public inputs are:
+    /// - the hash of the public inputs of the inner proof (4 Goldilocks).
+    /// - the zero hash (4 Goldilocks).
+    /// - the flag buckets = M Goldilocks where M = ceil(T/BUCKET_SIZE).
+    /// The private inputs are:
+    /// - the inner proof with public inputs
+    /// - the flag. We don't need this to be public since the flag_buckets (containing the flag) are public.
     fn add_targets(&self, builder: &mut CircuitBuilder<F, D>, register_pi: bool) -> Result<LeafTargets<D>> {
 
         let inner_common = self.inner_verifier_data.common.clone();
@@ -129,7 +153,7 @@ impl<
         }
 
         // verify the proofs in-circuit based on the
-        // true -> real proof, false -> dummy proof
+        // true (1) -> real proof, false (0) -> dummy proof
         let selected_vd = builder.select_verifier_data(flag.clone(), &const_verifier_data, &const_dummy_vd);
         builder.verify_proof::<C>(&vir_proof, &selected_vd, &inner_common);
 
