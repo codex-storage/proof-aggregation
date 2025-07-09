@@ -194,6 +194,24 @@ pub fn export_proof_with_pi<F, C, const D: usize, P: AsRef<Path>>(
 
 //------------------------- IMPORT --------------------------
 
+/// Import `CircuitData<F, C, D>` from disk under the given `base_path`.
+pub fn import_circuit_data<F, C, const D: usize, P: AsRef<Path> + Clone>(
+    base_path: P,
+) -> anyhow::Result<CircuitData<F, C, D>>
+    where
+        F: RichField + Extendable<D> + Poseidon2 + Serialize,
+        C: GenericConfig<D, F = F> + Default + Serialize + 'static,
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+{
+    let prover_data = import_prover_circuit_data(base_path.clone())?;
+    let verifier_data = import_verifier_circuit_data(base_path.clone())?;
+    Ok(CircuitData {
+        prover_only: prover_data.prover_only,
+        verifier_only: verifier_data.verifier_only,
+        common: verifier_data.common
+    })
+}
+
 /// Import `ProverCircuitData<F, C, D>` from disk under the given `base_path`.
 pub fn import_prover_circuit_data<F, C, const D: usize, P: AsRef<Path>>(
     base_path: P,
