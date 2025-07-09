@@ -17,7 +17,8 @@ use crate::recursion::leaf::BUCKET_SIZE;
 ///   - `r` is in the range [0, bucket_size),
 ///   - `q` is in the range [0, num_buckets),
 ///
-/// requires that the total range T = (bucket_size * num_buckets) is a power of 2.
+/// requires that the total range T = (bucket_size * num_buckets) is a power of 2 (and so is bucket_size and num_buckets).
+/// Assumes that `index` is in the range [0, T), range-checks `index` before calling this function.
 pub fn split_index<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -61,7 +62,9 @@ pub fn split_index<
     Ok((q_val, r_val))
 }
 
-/// A helper that computes 2^r for a target r in [0, 32) using selection over 32 constants.
+/// A helper that computes 2^r for a target r in [0, `BUCKET_SIZE`) using selection over `BUCKET_SIZE` constants.
+/// assumes that r is in the range [0, `BUCKET_SIZE`), range-checks r before calling this function
+/// if `r` is taken from `split_index` then it is already in the correct range
 pub fn compute_power_of_two<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
@@ -70,8 +73,6 @@ pub fn compute_power_of_two<
     r: Target,
 ) -> crate::Result<Target>
 {
-    // First range-check r so it is in [0, 32).
-    builder.range_check(r, BUCKET_SIZE);
     let mut result = builder.zero();
     for i in 0..BUCKET_SIZE {
         let i_const = builder.constant(F::from_canonical_u64(i as u64));
@@ -84,14 +85,18 @@ pub fn compute_power_of_two<
     Ok(result)
 }
 
-/// Computes the flag buckets from a given index and flag.
+/// Computes the flag buckets from a given index and flag (In-Circuit).
 ///
 /// Given:
 ///   - `index` is a Target representing a number in T = [0, bucket_size * num_buckets),
 ///   - `flag` is a BoolTarget (true if the proof is real, false if dummy),
-///   - `bucket_size` (e.g. 32 for Goldilocks) and `num_buckets` (e.g. 4 to fit 128 proofs),
-/// this function returns a vector of Targets representing the computed flag buckets.
-/// For bucket i, the value is:
+///   - `bucket_size` is the number of flags per bucket (e.g. 32 for Goldilocks)
+///   - `num_buckets` is the number of buckets (e.g. 4 to fit 128 proofs)
+/// this function returns a vector of `num_buckets` Targets representing the computed flag buckets.
+/// the flag buckets should contain zeroes everywhere except for the bucket that contains the flag.
+///
+/// The logic of this mini-circuit is as follows:
+/// For bucket i in [0, num_buckets), the value is:
 ///   - flag * 2^(r) if i is the selected bucket (i.e. i == q), where (q, r) = split_index(index),
 ///   - 0 otherwise.
 pub fn compute_flag_buckets<
@@ -133,11 +138,12 @@ pub fn compute_flag_buckets<
 
 /// Returns the number of buckets required to hold `t` flags,
 /// where each bucket can hold up to BUCKET_SIZE flags.
+/// bucket_count = ceil(t / BUCKET_SIZE)
 pub fn bucket_count(t: usize) -> usize {
     (t + BUCKET_SIZE -1) / BUCKET_SIZE
 }
 
-/// helper fn to generate hash of verifier data
+/// helper fn to generate hash of verifier data (outside the circuit)
 pub fn get_hash_of_verifier_data<
     F: RichField + Extendable<D> + Poseidon2,
     const D: usize,
