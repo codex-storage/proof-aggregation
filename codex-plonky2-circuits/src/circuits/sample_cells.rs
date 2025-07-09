@@ -219,7 +219,6 @@ impl<
         let slot_last_index = builder.sub(n_cells_per_slot, one);
 
         // create the mask bits
-        // TODO: re-use this for block and slot trees
         let mask_bits = builder.split_le(slot_last_index,max_depth);
 
         // last and mask bits for block tree
