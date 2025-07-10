@@ -32,8 +32,8 @@ impl<F, const D: usize, C> DummyProofGen<F, D, C>
 {
     /// Builds a dummy circuit from the provided common circuit data.
     pub fn gen_dummy_common_data(
+        config: CircuitConfig,
     ) -> CommonCircuitData<F, D> {
-        let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         // Add one virtual public input so that the circuit has minimal structure.
         builder.add_virtual_public_input();
