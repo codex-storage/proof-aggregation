@@ -2,7 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use codex_plonky2_circuits::bn254_wrapper::config::PoseidonBN254GoldilocksConfig;
 use crate::file_paths::{COMPRESS_CIRC_BASE_PATH, SAMPLING_CIRC_BASE_PATH, TREE_CIRC_BASE_PATH, WRAP_CIRC_BASE_PATH};
-use proof_input::params::C;
+use crate::params::C;
+
 type OuterParameters = PoseidonBN254GoldilocksConfig;
 
 mod build_circ;
@@ -12,6 +13,7 @@ mod gen_input;
 mod aggregate;
 mod bn254_wrap;
 mod file_paths;
+mod params;
 
 /// Codex_zk_cli: unified CLI for all zk operations
 #[derive(Parser)]

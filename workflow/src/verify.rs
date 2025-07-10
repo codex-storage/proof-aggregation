@@ -2,7 +2,7 @@ use std::time::Instant;
 use anyhow::Result;
 use plonky2::plonk::config::GenericConfig;
 use serde::Serialize;
-use proof_input::params::{D, F};
+use crate::params::{D, F};
 use codex_plonky2_circuits::serialization::{import_proof_with_pi, import_verifier_circuit_data};
 
 pub fn run<

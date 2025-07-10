@@ -4,7 +4,7 @@ use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 use codex_plonky2_circuits::circuits::sample_cells::SampleCircuit;
 use codex_plonky2_circuits::serialization::export_circuit_data;
 use proof_input::params::Params;
-use proof_input::params::{D, C, F,HF};
+use crate::params::{D, C, F, H};
 use crate::file_paths::SAMPLING_CIRC_BASE_PATH;
 
 pub fn run() -> Result<()> {
@@ -13,7 +13,7 @@ pub fn run() -> Result<()> {
 
     // Create the circuit
     let circuit_params = params.circuit_params;
-    let circ = SampleCircuit::<F,D,HF>::new(circuit_params);
+    let circ = SampleCircuit::<F,D,H>::new(circuit_params);
     let start_time = Instant::now();
     let (targets, data) = circ.build_with_standard_config()?;
     println!("Build time: {:?}", start_time.elapsed());

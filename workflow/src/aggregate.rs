@@ -3,7 +3,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use codex_plonky2_circuits::recursion::tree::TreeRecursion;
-use proof_input::params::{D, C, F, HF};
+use crate::params::{D, C, F, H};
 use codex_plonky2_circuits::serialization::{export_proof_with_pi, export_verifier_circuit_data, import_proof_with_pi, import_verifier_circuit_data};
 use crate::file_paths::{SAMPLING_CIRC_BASE_PATH, TREE_CIRC_BASE_PATH, COMPRESS_CIRC_BASE_PATH};
 pub fn run(compress: bool) -> Result<()> {
@@ -48,7 +48,7 @@ fn run_tree<const N: usize, const T: usize>(compress: bool) -> Result<()> {
     let proofs: Vec<ProofWithPublicInputs<F, C, D>> = (0..T).map(|_i| proof_with_pi.clone()).collect();
 
     let start_time = Instant::now();
-    let mut tree = TreeRecursion::<F,D,C,HF, N, T>::build_with_standard_config(verifier_data.clone()).unwrap();
+    let mut tree = TreeRecursion::<F,D,C,H, N, T>::build_with_standard_config(verifier_data.clone()).unwrap();
     println!("build tree time: {:?}", start_time.elapsed());
 
     let start_time = Instant::now();

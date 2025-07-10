@@ -4,7 +4,7 @@ use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 use proof_input::input_generator::serialization::{import_circ_input_from_json};
 use codex_plonky2_circuits::circuits::sample_cells::{SampleCircuit, SampleCircuitInput, SampleTargets};
 use codex_plonky2_circuits::circuits::params::CircuitParams;
-use proof_input::params::{D, C, F, HF};
+use crate::params::{D, C, F, H};
 use codex_plonky2_circuits::serialization::{export_proof_with_pi, import_prover_circuit_data, import_targets};
 use crate::file_paths::SAMPLING_CIRC_BASE_PATH;
 pub fn run() -> Result<()> {
@@ -25,7 +25,7 @@ pub fn run() -> Result<()> {
     println!("Circuit size (degree bits): {:?}", prover_data.common.degree_bits());
 
     // Prove the circuit with the assigned witness
-    let circ = SampleCircuit::<F,D,HF>::new(circuit_params);
+    let circ = SampleCircuit::<F,D,H>::new(circuit_params);
     let start_time = Instant::now();
     let proof_with_pis = circ.prove(&circ_targets, &circ_input, &prover_data)?;
     println!("Proving time: {:?}", start_time.elapsed());

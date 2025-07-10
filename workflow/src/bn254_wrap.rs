@@ -4,7 +4,7 @@ use codex_plonky2_circuits::bn254_wrapper::config::PoseidonBN254GoldilocksConfig
 use codex_plonky2_circuits::bn254_wrapper::wrap::{WrapCircuit, WrapInput, WrappedOutput};
 use codex_plonky2_circuits::circuit_trait::Plonky2Circuit;
 use codex_plonky2_circuits::serialization::{export_verifier_circuit_data, import_proof_with_pi, import_verifier_circuit_data};
-use proof_input::params::{D, C, F};
+use crate::params::{D, C, F};
 use crate::file_paths::WRAP_CIRC_BASE_PATH;
 
 type OuterParameters = PoseidonBN254GoldilocksConfig;
