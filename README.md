@@ -17,6 +17,8 @@ Repository organization
 
 - [`codex-plonky2-circuits`](./codex-plonky2-circuits) contains the Plonky2 codex storage proof circuits. These circuits have the functionality as those in [**here**](https://github.com/codex-storage/codex-storage-proofs-circuits)
 
+- [`plonky2-monolith`](./plonky2-monolith) contains the Monolith hash function for Plonky2.
+
 - [`proof-input`](./proof-input) contains the code to generate proof input for the circuit from fake dataset + some tests for the circuits.
 
 - [`gnark-wrapper`](./gnark-wrapper) contains a Go-based CLI for compiling, proving, and verifying Plonky2-wrapped circuits using our version of [gnark-plonky2-verifier](https://github.com/codex-storage/gnark-plonky2-verifier)
