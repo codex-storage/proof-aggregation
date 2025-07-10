@@ -1,4 +1,6 @@
 # Monolith Plonky2
+This is an updated version of the [plonky2_monolith](https://github.com/HorizenLabs/monolith/tree/main)
+
 This crate provides an implementation of the [Monolith hash function](https://eprint.iacr.org/2023/1025.pdf) that can be employed in the [Plonky2 proving system](https://github.com/mir-protocol/plonky2). Monolith hash function is a new zk-friendly hash function which is much faster than state-of-the-art zk-friendly hash functions, exhibiting performance similar to the Keccak hash function. In particular, according to our initial benchmarks, Monolith is from 2 to 3 times faster than Poseidon, the current hash function employed in the Plonky2 proving system.
 
 This crate can be employed to:
